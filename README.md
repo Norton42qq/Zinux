@@ -1,5 +1,5 @@
 # Zinux - Analog "Linux" #1 in Russia
-https://github.com/Norton42qq/Zinux/blob/main/assets/%D1%83%D0%BA%D0%B5%D1%8B%D0%BD%D1%80.png
+
 ## --------- Check List ---------
 ### Working bootloader - 🟧 (stage 2 doesn't work)
 ### Working kernel - 🟥
