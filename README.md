@@ -7,4 +7,5 @@
 ### Your own extension for launching applications (analog .exe, .appimage) - 🟥
 ## --------- social ---------
 [Telegram](https://t.me/Zinux_channel)
+
 [Github](https://github.com/Norton42qq/Zinux/issues)
