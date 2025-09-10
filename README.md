@@ -6,6 +6,6 @@
 ### Working drivers for keyboard -🟥
 ### Your own extension for launching applications (analog .exe, .appimage) - 🟥
 ## --------- social ---------
-[Telegram](https://t.me/Zinux_channel)
+- [Telegram](https://t.me/Zinux_channel)
 
-[Github](https://github.com/Norton42qq/Zinux/issues)
+- [Github](https://github.com/Norton42qq/Zinux/issues)
