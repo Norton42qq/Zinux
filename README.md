@@ -6,4 +6,4 @@
 ### Working drivers for keyboard -🟥
 ### Your own extension for launching applications (analog .exe, .appimage) - 🟥
 ## --------- social ---------
-[Telegram](https://telegram.org/zinux_channel)
+[Telegram](https://t.me/Zinux_channel)
