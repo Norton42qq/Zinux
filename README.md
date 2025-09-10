@@ -5,4 +5,5 @@
 ### Working kernel - 🟥
 ### Working drivers for keyboard -🟥
 ### Your own extension for launching applications (analog .exe, .appimage) - 🟥
-
+## --------- social ---------
+[Telegram](https://telegram.org/linux_channel)
