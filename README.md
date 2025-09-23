@@ -28,17 +28,29 @@
 make
 ```
 
-This will generate a bootable floppy image (.img) in the project root directory.
+This will generate a bootable floppy image (zinux.img) in the build/ directory.
 
-Run in QEMU
+### Run in QEMU
 
 ```
- qemu-system-x86_64 -fda zinux.img
+ qemu-system-x86_64 -fda build/zinux.img
 ```
+
+### Clean
+
+To remove all build artifacts (boot.bin, zinux.img) run:
+
+```
+make clean
+```
+
+This will delete the entire build/ directory
+
+---
 
 If everything works, you should see the bootloader starting Zinux.
 
---------- Social ---------
+## --------- Social ---------
 
 - [Telegram](https://t.me/Zinux_channel)
 
