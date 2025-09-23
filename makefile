@@ -10,8 +10,9 @@ LDFLAGS  = -nostdlib -static
 
 BOOT      = boot/boot.asm
 
-BOOT_BIN    = boot.bin
-IMG         = zinux.img
+BUILD_DIR   = build
+BOOT_BIN    = $(BUILD_DIR)/boot.bin
+IMG         = $(BUILD_DIR)/zinux.img
 
 SECTOR_SIZE = 512
 BOOT_SECTORS = 1
@@ -19,22 +20,21 @@ KERNEL_SECTORS = 1024
 
 all: $(IMG)
 
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+$(BOOT_BIN): $(BOOT) | $(BUILD_DIR)
+	@echo "Compiling boot.asm..."
+	@$(ASM) $(ASMFLAGS) $< -o $@
+
 $(IMG): $(BOOT_BIN)
 	@echo "Creating zinux.img..."
 	@$(DD) if=/dev/zero of=$(IMG) bs=$(SECTOR_SIZE) count=2048 status=none
 	@$(DD) if=$(BOOT_BIN) of=$(IMG) bs=$(SECTOR_SIZE) count=$(BOOT_SECTORS) conv=notrunc status=none
 	@echo "zinux.img created!"
 
-$(BOOT_BIN): $(BOOT)
-	@echo "Compiling boot.asm..."
-	@$(ASM) $(ASMFLAGS) $< -o $@
-
 clean:
 	@echo "Cleaning..."
-	@rm -f $(BOOT_BIN) $(IMG)
+	@rm -rf $(BUILD_DIR)
 
-rund: $(IMG)
-	@$(QEMU) -drive format=raw,file=$(IMG) -serial stdio -m 512M -cpu qemu64,+smep -monitor vc -d int,cpu_reset,guest_errors,unimp
-
-.PHONY: all clean rund
-
+.PHONY: all clean
