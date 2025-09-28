@@ -12,7 +12,7 @@
 
 ### Your own extension for launching applications (analog .exe, .appimage) - 🟥
 
-### Attempts to boot on real hardware - 🟥 (UEFI = "Not booting for uefi", Legacy - "boot error")
+### Attempts to boot on real hardware - 🟥 (UEFI = "Not booting for uefi", Legacy - "Zrub is loading, then "loading Zinux kernel" hard reset. [Video](https://t.me/Zinux_channel/49)")
 
 ## --------- Build & Run ---------
 
@@ -35,7 +35,11 @@ This will generate a bootable floppy image (zinux.img) in the build/ directory.
 ```
  qemu-system-x86_64 -fda build/zinux.img
 ```
+### Run in Real PC
 
+```
+ sudo dd if=build/zinux.img  of=/dev/sdX bs=1M
+```
 ### Clean
 
 To remove all build artifacts (boot.bin, zinux.img) run:
