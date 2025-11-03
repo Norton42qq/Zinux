@@ -60,4 +60,6 @@ If everything works, you should see the bootloader starting Zinux.
 
 - [Github](https://github.com/Norton42qq/Zinux/issues)
 
----
+## --------- Star History ---------
+
+[![Star History Chart](https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&legend=top-left)](https://www.star-history.com/#norton42qq/zinux&type=date&legend=top-left)
