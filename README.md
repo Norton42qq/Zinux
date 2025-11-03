@@ -62,8 +62,6 @@ If everything works, you should see the bootloader starting Zinux.
 
 ## --------- Star History ---------
 
-## Star History
-
 <a href="https://www.star-history.com/#norton42qq/zinux&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&theme=dark&legend=top-left" />
