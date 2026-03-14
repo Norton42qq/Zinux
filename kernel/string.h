@@ -1,29 +1,34 @@
 #ifndef STRING_H
 #define STRING_H
 
-#include "common.h"
+#include <stdint.h>
+#include <stddef.h>
 
-UINTN strlen_ascii(const char *str);
-UINTN wstrlen(const CHAR16 *str);
+size_t strlen(const char* str);
+int strcmp(const char* s1, const char* s2);
+int strncmp(const char* s1, const char* s2, size_t n);
+char* strcpy(char* dest, const char* src);
+char* strncpy(char* dest, const char* src, size_t n);
+char* strcat(char* dest, const char* src);
+char* strchr(const char* str, int c);
+char* strstr(const char* haystack, const char* needle);
 
-char* strcpy_ascii(char *dest, const char *src);
-CHAR16* wstrcpy(CHAR16 *dest, const CHAR16 *src);
+void* memset(void* dest, int c, size_t n);
+void* memcpy(void* dest, const void* src, size_t n);
+int memcmp(const void* s1, const void* s2, size_t n);
+void* memmove(void* dest, const void* src, size_t n);
 
-int strcmp_ascii(const char *s1, const char *s2);
-int wstrcmp(const CHAR16 *s1, const CHAR16 *s2);
+int atoi(const char* str);
+void itoa(int value, char* str, int base);
+void utoa(uint32_t value, char* str, int base);
 
-char* strcat_ascii(char *dest, const char *src);
-CHAR16* wstrcat(CHAR16 *dest, const CHAR16 *src);
+char tolower(char c);
+char toupper(char c);
+int isdigit(char c);
+int isalpha(char c);
+int isspace(char c);
 
-void* memset_custom(void *ptr, int value, UINTN num);
-void* memcpy_custom(void *dest, const void *src, UINTN num);
-
-// Для CHAR16 буферов
-void wmemset(CHAR16 *ptr, CHAR16 value, UINTN count);
-
-void itoa_ascii(INT64 value, char *str, int base);
-void itow(INT64 value, CHAR16 *str, int base);
-
-void char_to_wchar(const char *src, CHAR16 *dest, UINTN max_len);
+char* strtok(char* str, const char* delim);
+void str_trim(char* str);
 
 #endif

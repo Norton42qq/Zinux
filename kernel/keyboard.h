@@ -1,59 +1,39 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
-#include "common.h"
+#include <stdint.h>
 
-#define KEY_NULL        0x0000
-#define KEY_UP          0x0001
-#define KEY_DOWN        0x0002
-#define KEY_LEFT        0x0003
-#define KEY_RIGHT       0x0004
-#define KEY_HOME        0x0005
-#define KEY_END         0x0006
-#define KEY_INSERT      0x0007
-#define KEY_DELETE      0x0008
-#define KEY_PGUP        0x0009
-#define KEY_PGDN        0x000A
-#define KEY_F1          0x000B
-#define KEY_F2          0x000C
-#define KEY_F3          0x000D
-#define KEY_F4          0x000E
-#define KEY_F5          0x000F
-#define KEY_F6          0x0010
-#define KEY_F7          0x0011
-#define KEY_F8          0x0012
-#define KEY_F9          0x0013
-#define KEY_F10         0x0014
-#define KEY_F11         0x0015
-#define KEY_F12         0x0016
-#define KEY_ESC         0x0017
-#define KEY_BACKSPACE   0x0008
-#define KEY_TAB         0x0009
-#define KEY_ENTER       0x000D
+#define KEYBOARD_DATA_PORT      0x60
+#define KEYBOARD_STATUS_PORT    0x64
+#define KEYBOARD_BUFFER_SIZE    256
 
-// Структура для хранения клавиш
-typedef struct {
-    CHAR16 unicode;       // Юникод символ
-    UINT16 scan_code;     // Scan code для специальных клавиш
-    BOOLEAN is_special;   // Флаг специальной клавиши
-} KeyEvent;
+#define SC_ESCAPE       0x01
+#define SC_BACKSPACE    0x0E
+#define SC_TAB          0x0F
+#define SC_ENTER        0x1C
+#define SC_LCTRL        0x1D
+#define SC_LSHIFT       0x2A
+#define SC_RSHIFT       0x36
+#define SC_LALT         0x38
+#define SC_CAPSLOCK     0x3A
+#define SC_ARROW_UP     0x48
+#define SC_ARROW_DOWN   0x50
+#define SC_ARROW_LEFT   0x4B
+#define SC_ARROW_RIGHT  0x4D
 
-// Инициализация клавиатуры
-EFI_STATUS keyboard_init(void);
+#define KEY_ARROW_UP    ((char)128)
+#define KEY_ARROW_DOWN  ((char)129)
+#define KEY_ARROW_LEFT  ((char)130)
+#define KEY_ARROW_RIGHT ((char)131)
 
-// Проверка, есть ли нажатая клавиша
-BOOLEAN keyboard_has_key(void);
+void keyboard_init(void);
+void keyboard_callback(uint32_t scancode);
+char keyboard_getchar(void);
+int  keyboard_haschar(void);
+char keyboard_wait_char(void);
+void keyboard_clear_buffer(void);
 
-// Ожидание нажатия клавиши (блокирующее)
-KeyEvent keyboard_wait_key(void);
-
-// Получение клавиши без ожидания
-BOOLEAN keyboard_get_key(KeyEvent *event);
-
-// Чтение строки с клавиатуры
-void keyboard_read_line(CHAR16 *buffer, UINTN max_len);
-
-// Сброс буфера клавиатуры
-void keyboard_flush(void);
+int keyboard_shift_pressed(void);
+int keyboard_ctrl_pressed(void);
 
 #endif

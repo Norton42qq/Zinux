@@ -1,18 +1,19 @@
 # Zinux - Analog "Linux" #1 in Russia
 
 ## ![Logo Image](assets/logo1-256.png)
+[API Documentation](docs/Zinux\ SDK\ Documentation.md)
 
 ## --------- Check List ---------
 
-### Working bootloader - 🟥 (No image)
+### Working bootloader - 🟢 (Launches the kernel)
 
-### Working kernel - 🟥
+### Working kernel - 🟢 (Working)
 
-### Working drivers for keyboard - 🟥
+### Working drivers for keyboard - 🟡 (There are problems)
 
-### Your own extension for launching applications (analog .exe, .appimage) - 🟥
+### Your own extension for launching applications (analog .exe, .appimage) - 🟡 (The SDK or API may be unstable.)
 
-### Attempts to boot on real hardware - 🟥 (There were no attempts)
+### Attempts to boot on real hardware - 🟡 (Desktop: Works relatively well, but not consistently Notebook: Video driver issue)
 
 ## --------- Build & Run ---------
 
@@ -23,36 +24,80 @@
 - GNU Make
 
 ```bash
-sudo pacman -S gnu-efi make nasm gcc qemu-full edk2-ovmf dosfstools
+sudo pacman -S nasm, i686-elf-gcc, gcc, make, ld, qemu, mtools, dosfstools, dd
 ```
+---
 
 ### build
 ```bash
+# Build system
 make clean && make
-chmod +x create_disk.sh
-sudo ./create_disk.sh
 ```
+```bash
+#Build programs
+cd development\ folder/
+make
+```
+---
+
+### Install programs
+**Method 1:**
+```bash
+cd development\ folder/
+make install
+```
+**Method 2**
+```bash
+mcopy -i zinux.img@@1048576 "file" ::
+```
+---
 
 ### Start in QEMU
-Method 1:
+**Method 1:**
 ```bash
 make run
 ```
 
-Method 2:
+**Method 2:**
 ```bash
-qemu-system-x86_64 -bios /usr/share/edk2-ovmf/x64/OVMF.4m.fd -drive file=disk.img,format=raw,if=ide -m 256M -serial stdio
+qemu-system-i386 -machine pc,usb=off -drive file=zinux.img,format=raw,index=0,media=disk -m 640K -vga std
 ```
+---
+
+### Start in Real PC
+```bash
+sudo dd if=zinux.img of=/dev/sdc bs=4M oflag=sync status=progress && sudo sync
+```
+#### in bios
+- Disable secure boot
+- Enable CSM
+---
 
 ### Clean
 To remove all build artifacts run:
 ```bash
 make clean
 ```
-
 ---
 
 If everything works, you should see the bootloader starting Zinux.
+
+---
+### The hardware on which the system was tested
+- **PC #1**
+  > CPU: I5-10400F
+    GPU: AMD Radeon RX550 4GB (Architecture: Buffin)
+    RAM: 16GB DDR4 2666Mhz
+    Motherboard: Asus PRIME b460m-k
+- **PC #2**
+  > CPU: I3-3220
+    GPU: GTX650 1GB
+    RAM: 8GB DDR3 1600Mhz
+    Motherboard: Asus P8H77M
+- **Notebook #1** `Asus x550cc`
+  > CPU: i3-2365M (UHD 4000)
+    GPU: Nvidia Geforce GT720M
+    RAM: 4GB DDR3 1600Mhz
 
 ## --------- Social ---------
 

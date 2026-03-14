@@ -1,151 +1,124 @@
 #include "keyboard.h"
-#include "console.h"
-#include "string.h"
+#include "io.h"
 
-EFI_STATUS keyboard_init(void) {
-    keyboard_flush();
-    return EFI_SUCCESS;
-}
+// Буфер
+static char key_buffer[KEYBOARD_BUFFER_SIZE];
+static volatile int buffer_head = 0;
+static volatile int buffer_tail = 0;
 
-void keyboard_flush(void) {
-    EFI_INPUT_KEY key;
-    while (uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key) == EFI_SUCCESS) {
+// Модификаторы
+static volatile int shift_pressed = 0;
+static volatile int ctrl_pressed = 0;
+static volatile int caps_lock = 0;
+
+// Символы
+static const char sc_ascii_lower[128] = {
+/*00*/  0,  27, '1','2','3','4','5','6','7','8','9','0','-','=','\b',
+/*0F*/  '\t','q','w','e','r','t','y','u','i','o','p','[',']','\n',
+/*1D*/  0,  'a','s','d','f','g','h','j','k','l',';','\'','`',
+/*2A*/  0,  '\\','z','x','c','v','b','n','m',',','.','/',  0,
+/*37*/  '*', 0,  ' '
+};
+
+// Символы верхнего регистра
+static const char sc_ascii_upper[128] = {
+/*00*/  0,  27, '!','@','#','$','%','^','&','*','(',')','_','+','\b',
+/*0F*/  '\t','Q','W','E','R','T','Y','U','I','O','P','{','}','\n',
+/*1D*/  0,  'A','S','D','F','G','H','J','K','L',':','"','~',
+/*2A*/  0,  '|','Z','X','C','V','B','N','M','<','>','?',  0,
+/*37*/  '*', 0,  ' '
+};
+
+// Добавление в буфер
+static void buffer_put(char c) {
+    int next = (buffer_head + 1) % KEYBOARD_BUFFER_SIZE;
+    if (next != buffer_tail) {
+        key_buffer[buffer_head] = c;
+        buffer_head = next;
     }
 }
 
-BOOLEAN keyboard_has_key(void) {
-    EFI_STATUS status;
-    status = uefi_call_wrapper(BS->CheckEvent, 1, ST->ConIn->WaitForKey);
-    return (status == EFI_SUCCESS);
+// Инициализация
+void keyboard_init(void) {
+    buffer_head = 0;
+    buffer_tail = 0;
+    shift_pressed = 0;
+    ctrl_pressed = 0;
+    caps_lock = 0;
 }
 
-KeyEvent keyboard_wait_key(void) {
-    EFI_STATUS status;
-    EFI_INPUT_KEY efi_key;
-    KeyEvent event;
-    UINTN index;
+// Обработчик прерывания
+void keyboard_callback(uint32_t scancode) {
+    uint8_t code = (uint8_t)(scancode & 0xFF);
+    int released = (code & 0x80) != 0;
+    code &= 0x7F;  // Убираем бит отпускания
     
-    uefi_call_wrapper(BS->WaitForEvent, 3, 1, &ST->ConIn->WaitForKey, &index);
-    status = uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &efi_key);
-    
-    if (EFI_ERROR(status)) {
-        event.unicode = 0;
-        event.scan_code = 0;
-        event.is_special = FALSE;
-        return event;
+    // Модификаторы
+    if (code == SC_LSHIFT || code == SC_RSHIFT) {
+        shift_pressed = !released;
+        return;
+    }
+    if (code == SC_LCTRL) {
+        ctrl_pressed = !released;
+        return;
+    }
+    if (code == SC_CAPSLOCK) {
+        if (!released) caps_lock = !caps_lock;
+        return;
     }
     
-    event.unicode = efi_key.UnicodeChar;
-    event.scan_code = efi_key.ScanCode;
+    // Игнорируем отпускание
+    if (released) return;
     
-    if (efi_key.UnicodeChar == 0) {
-        event.is_special = TRUE;
-        switch (efi_key.ScanCode) {
-            case SCAN_UP:        event.scan_code = KEY_UP; break;
-            case SCAN_DOWN:      event.scan_code = KEY_DOWN; break;
-            case SCAN_LEFT:      event.scan_code = KEY_LEFT; break;
-            case SCAN_RIGHT:     event.scan_code = KEY_RIGHT; break;
-            case SCAN_HOME:      event.scan_code = KEY_HOME; break;
-            case SCAN_END:       event.scan_code = KEY_END; break;
-            case SCAN_INSERT:    event.scan_code = KEY_INSERT; break;
-            case SCAN_DELETE:    event.scan_code = KEY_DELETE; break;
-            case SCAN_PAGE_UP:   event.scan_code = KEY_PGUP; break;
-            case SCAN_PAGE_DOWN: event.scan_code = KEY_PGDN; break;
-            case SCAN_F1:        event.scan_code = KEY_F1; break;
-            case SCAN_F2:        event.scan_code = KEY_F2; break;
-            case SCAN_F3:        event.scan_code = KEY_F3; break;
-            case SCAN_F4:        event.scan_code = KEY_F4; break;
-            case SCAN_F5:        event.scan_code = KEY_F5; break;
-            case SCAN_F6:        event.scan_code = KEY_F6; break;
-            case SCAN_F7:        event.scan_code = KEY_F7; break;
-            case SCAN_F8:        event.scan_code = KEY_F8; break;
-            case SCAN_F9:        event.scan_code = KEY_F9; break;
-            case SCAN_F10:       event.scan_code = KEY_F10; break;
-            case SCAN_F11:       event.scan_code = KEY_F11; break;
-            case SCAN_F12:       event.scan_code = KEY_F12; break;
-            case SCAN_ESC:       event.scan_code = KEY_ESC; break;
-            default:             event.scan_code = efi_key.ScanCode; break;
+    // Стрелки
+    if (code == SC_ARROW_UP)    { buffer_put((char)KEY_ARROW_UP);    return; }
+    if (code == SC_ARROW_DOWN)  { buffer_put((char)KEY_ARROW_DOWN);  return; }
+    if (code == SC_ARROW_LEFT)  { buffer_put((char)KEY_ARROW_LEFT);  return; }
+    if (code == SC_ARROW_RIGHT) { buffer_put((char)KEY_ARROW_RIGHT); return; }
+    
+    // Обычные клавиши
+    if (code < 58) {  // Только валидные скан коды
+        int use_shift = shift_pressed;
+        
+        // Caps Lock
+        if (caps_lock && code >= 0x10 && code <= 0x32) {
+            use_shift = !use_shift;
         }
-    } else {
-        event.is_special = FALSE;
+        
+        char c = use_shift ? sc_ascii_upper[code] : sc_ascii_lower[code];
+        
+        if (c != 0) {
+            buffer_put(c);
+        }
     }
-    
-    return event;
 }
 
-BOOLEAN keyboard_get_key(KeyEvent *event) {
-    EFI_STATUS status;
-    EFI_INPUT_KEY efi_key;
-    
-    status = uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &efi_key);
-    
-    if (EFI_ERROR(status)) {
-        return FALSE;
-    }
-    
-    event->unicode = efi_key.UnicodeChar;
-    event->scan_code = efi_key.ScanCode;
-    event->is_special = (efi_key.UnicodeChar == 0);
-    
-    return TRUE;
+// Есть ли символ?
+int keyboard_haschar(void) {
+    return buffer_head != buffer_tail;
 }
 
-void keyboard_read_line(CHAR16 *buffer, UINTN max_len) {
-    UINTN pos = 0;
-    KeyEvent key;
-    
-    // Правильное обнуление CHAR16 буфера
-    wmemset(buffer, L'\0', max_len);
-    
-    while (1) {
-        key = keyboard_wait_key();
-        
-        if (key.is_special) {
-            switch (key.scan_code) {
-                case KEY_ESC:
-                    while (pos > 0) {
-                        pos--;
-                        console_backspace();
-                    }
-                    buffer[0] = L'\0';
-                    break;
-                default:
-                    break;
-            }
-            continue;
-        }
-        
-        // Enter
-        if (key.unicode == L'\r' || key.unicode == L'\n') {
-            buffer[pos] = L'\0';
-            console_newline();
-            return;
-        }
-        
-        // Backspace
-        if (key.unicode == 0x08) {
-            if (pos > 0) {
-                pos--;
-                buffer[pos] = L'\0';
-                console_backspace();
-            }
-            continue;
-        }
-        
-        // Tab
-        if (key.unicode == 0x09) {
-            UINTN spaces = 4;
-            while (spaces-- > 0 && pos < max_len - 1) {
-                buffer[pos++] = L' ';
-                console_putchar(L' ');
-            }
-            continue;
-        }
-        
-        // Обычные символы
-        if (pos < max_len - 1 && key.unicode >= 0x20) {
-            buffer[pos++] = key.unicode;
-            console_putchar(key.unicode);
-        }
-    }
+// Взять без ожидания
+char keyboard_getchar(void) {
+    if (buffer_head == buffer_tail) return 0;
+    char c = key_buffer[buffer_tail];
+    buffer_tail = (buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
+    return c;
 }
+
+// Ожидание символа
+char keyboard_wait_char(void) {
+    while (!keyboard_haschar()) {
+        __asm__ volatile("hlt");
+    }
+    return keyboard_getchar();
+}
+
+// Очистка буфера
+void keyboard_clear_buffer(void) {
+    buffer_head = 0;
+    buffer_tail = 0;
+}
+
+int keyboard_shift_pressed(void) { return shift_pressed; }
+int keyboard_ctrl_pressed(void) { return ctrl_pressed; }

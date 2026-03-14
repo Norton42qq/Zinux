@@ -1,34 +1,16 @@
 #include "string.h"
 
-UINTN strlen_ascii(const char *str) {
-    UINTN len = 0;
-    while (str[len] != '\0') {
+// Длина строки
+size_t strlen(const char* str) {
+    size_t len = 0;
+    while (str[len]) {
         len++;
     }
     return len;
 }
 
-UINTN wstrlen(const CHAR16 *str) {
-    UINTN len = 0;
-    while (str[len] != L'\0') {
-        len++;
-    }
-    return len;
-}
-
-char* strcpy_ascii(char *dest, const char *src) {
-    char *ret = dest;
-    while ((*dest++ = *src++) != '\0');
-    return ret;
-}
-
-CHAR16* wstrcpy(CHAR16 *dest, const CHAR16 *src) {
-    CHAR16 *ret = dest;
-    while ((*dest++ = *src++) != L'\0');
-    return ret;
-}
-
-int strcmp_ascii(const char *s1, const char *s2) {
+// Сравнение строк
+int strcmp(const char* s1, const char* s2) {
     while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
@@ -36,57 +18,151 @@ int strcmp_ascii(const char *s1, const char *s2) {
     return *(unsigned char*)s1 - *(unsigned char*)s2;
 }
 
-int wstrcmp(const CHAR16 *s1, const CHAR16 *s2) {
-    while (*s1 && (*s1 == *s2)) {
+// Сравнение N символов
+int strncmp(const char* s1, const char* s2, size_t n) {
+    while (n && *s1 && (*s1 == *s2)) {
         s1++;
         s2++;
+        n--;
     }
-    return *s1 - *s2;
+    if (n == 0) return 0;
+    return *(unsigned char*)s1 - *(unsigned char*)s2;
 }
 
-char* strcat_ascii(char *dest, const char *src) {
-    char *ret = dest;
-    while (*dest) dest++;
-    while ((*dest++ = *src++) != '\0');
+// Копирование строки
+char* strcpy(char* dest, const char* src) {
+    char* ret = dest;
+    while ((*dest++ = *src++));
     return ret;
 }
 
-CHAR16* wstrcat(CHAR16 *dest, const CHAR16 *src) {
-    CHAR16 *ret = dest;
-    while (*dest) dest++;
-    while ((*dest++ = *src++) != L'\0');
+// Копирование N символов
+char* strncpy(char* dest, const char* src, size_t n) {
+    char* ret = dest;
+    while (n && (*dest++ = *src++)) {
+        n--;
+    }
+    while (n--) {
+        *dest++ = '\0';
+    }
     return ret;
 }
 
-void* memset_custom(void *ptr, int value, UINTN num) {
-    UINT8 *p = (UINT8*)ptr;
-    UINT8 val = (UINT8)value;
-    for (UINTN i = 0; i < num; i++) {
-        p[i] = val;
+// Конкатенация строк
+char* strcat(char* dest, const char* src) {
+    char* ret = dest;
+    while (*dest) {
+        dest++;
     }
-    return ptr;
+    while ((*dest++ = *src++));
+    return ret;
 }
 
-void* memcpy_custom(void *dest, const void *src, UINTN num) {
-    UINT8 *d = (UINT8*)dest;
-    const UINT8 *s = (const UINT8*)src;
-    for (UINTN i = 0; i < num; i++) {
-        d[i] = s[i];
+// Поиск символа в строке
+char* strchr(const char* str, int c) {
+    while (*str) {
+        if (*str == (char)c) {
+            return (char*)str;
+        }
+        str++;
+    }
+    return (c == '\0') ? (char*)str : NULL;
+}
+
+// Поиск подстроки
+char* strstr(const char* haystack, const char* needle) {
+    size_t needle_len = strlen(needle);
+    if (needle_len == 0) return (char*)haystack;
+    
+    while (*haystack) {
+        if (strncmp(haystack, needle, needle_len) == 0) {
+            return (char*)haystack;
+        }
+        haystack++;
+    }
+    return NULL;
+}
+
+// Заполнение памяти
+void* memset(void* dest, int c, size_t n) {
+    unsigned char* p = dest;
+    while (n--) {
+        *p++ = (unsigned char)c;
     }
     return dest;
 }
 
-void wmemset(CHAR16 *ptr, CHAR16 value, UINTN count) {
-    for (UINTN i = 0; i < count; i++) {
-        ptr[i] = value;
+// Копирование памяти
+void* memcpy(void* dest, const void* src, size_t n) {
+    unsigned char* d = dest;
+    const unsigned char* s = src;
+    while (n--) {
+        *d++ = *s++;
     }
+    return dest;
 }
 
-void itoa_ascii(INT64 value, char *str, int base) {
-    char *ptr = str;
-    char *ptr1 = str;
+// Сравнение памяти
+int memcmp(const void* s1, const void* s2, size_t n) {
+    const unsigned char* p1 = s1;
+    const unsigned char* p2 = s2;
+    while (n--) {
+        if (*p1 != *p2) {
+            return *p1 - *p2;
+        }
+        p1++;
+        p2++;
+    }
+    return 0;
+}
+
+// Перемещение памяти (с перекрытием)
+void* memmove(void* dest, const void* src, size_t n) {
+    unsigned char* d = dest;
+    const unsigned char* s = src;
+    
+    if (d < s) {
+        while (n--) {
+            *d++ = *s++;
+        }
+    } else {
+        d += n;
+        s += n;
+        while (n--) {
+            *--d = *--s;
+        }
+    }
+    return dest;
+}
+
+// Преобразование строки в число
+int atoi(const char* str) {
+    int result = 0;
+    int sign = 1;
+    
+    while (isspace(*str)) str++;
+    
+    if (*str == '-') {
+        sign = -1;
+        str++;
+    } else if (*str == '+') {
+        str++;
+    }
+    
+    while (isdigit(*str)) {
+        result = result * 10 + (*str - '0');
+        str++;
+    }
+    
+    return sign * result;
+}
+
+// Преобразование числа в строку
+void itoa(int value, char* str, int base) {
+    char* ptr = str;
+    char* ptr1 = str;
     char tmp_char;
-    INT64 tmp_value;
+    int tmp_value;
     
     if (value < 0 && base == 10) {
         *ptr++ = '-';
@@ -94,21 +170,11 @@ void itoa_ascii(INT64 value, char *str, int base) {
         value = -value;
     }
     
-    if (value == 0) {
-        *ptr++ = '0';
-        *ptr = '\0';
-        return;
-    }
-    
-    while (value) {
-        tmp_value = value % base;
-        if (tmp_value < 10) {
-            *ptr++ = '0' + tmp_value;
-        } else {
-            *ptr++ = 'A' + tmp_value - 10;
-        }
+    do {
+        tmp_value = value;
         value /= base;
-    }
+        *ptr++ = "0123456789abcdef"[tmp_value - value * base];
+    } while (value);
     
     *ptr-- = '\0';
     
@@ -119,35 +185,20 @@ void itoa_ascii(INT64 value, char *str, int base) {
     }
 }
 
-void itow(INT64 value, CHAR16 *str, int base) {
-    CHAR16 *ptr = str;
-    CHAR16 *ptr1 = str;
-    CHAR16 tmp_char;
-    INT64 tmp_value;
+// Преобразование беззнакового числа в строку
+void utoa(uint32_t value, char* str, int base) {
+    char* ptr = str;
+    char* ptr1 = str;
+    char tmp_char;
+    uint32_t tmp_value;
     
-    if (value < 0 && base == 10) {
-        *ptr++ = L'-';
-        ptr1++;
-        value = -value;
-    }
-    
-    if (value == 0) {
-        *ptr++ = L'0';
-        *ptr = L'\0';
-        return;
-    }
-    
-    while (value) {
-        tmp_value = value % base;
-        if (tmp_value < 10) {
-            *ptr++ = L'0' + tmp_value;
-        } else {
-            *ptr++ = L'A' + tmp_value - 10;
-        }
+    do {
+        tmp_value = value;
         value /= base;
-    }
+        *ptr++ = "0123456789abcdef"[tmp_value - value * base];
+    } while (value);
     
-    *ptr-- = L'\0';
+    *ptr-- = '\0';
     
     while (ptr1 < ptr) {
         tmp_char = *ptr;
@@ -156,11 +207,104 @@ void itow(INT64 value, CHAR16 *str, int base) {
     }
 }
 
-void char_to_wchar(const char *src, CHAR16 *dest, UINTN max_len) {
-    UINTN i = 0;
-    while (src[i] != '\0' && i < max_len - 1) {
-        dest[i] = (CHAR16)src[i];
-        i++;
+// Преобразование в нижний регистр
+char tolower(char c) {
+    if (c >= 'A' && c <= 'Z') {
+        return c + 32;
     }
-    dest[i] = L'\0';
+    return c;
+}
+
+// Преобразование в верхний регистр
+char toupper(char c) {
+    if (c >= 'a' && c <= 'z') {
+        return c - 32;
+    }
+    return c;
+}
+
+// Проверка: цифра
+int isdigit(char c) {
+    return c >= '0' && c <= '9';
+}
+
+// Проверка: буква
+int isalpha(char c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+// Проверка: пробел
+int isspace(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
+}
+
+// Разбор строки по разделителям
+static char* strtok_ptr = NULL;
+
+char* strtok(char* str, const char* delim) {
+    char* token_start;
+    
+    if (str != NULL) {
+        strtok_ptr = str;
+    }
+    
+    if (strtok_ptr == NULL) {
+        return NULL;
+    }
+    
+    // Пропускаем начальные разделители
+    while (*strtok_ptr && strchr(delim, *strtok_ptr)) {
+        strtok_ptr++;
+    }
+    
+    if (*strtok_ptr == '\0') {
+        strtok_ptr = NULL;
+        return NULL;
+    }
+    
+    token_start = strtok_ptr;
+    
+    // Ищем конец токена
+    while (*strtok_ptr && !strchr(delim, *strtok_ptr)) {
+        strtok_ptr++;
+    }
+    
+    if (*strtok_ptr) {
+        *strtok_ptr++ = '\0';
+    } else {
+        strtok_ptr = NULL;
+    }
+    
+    return token_start;
+}
+
+// Удаление пробелов в начале и конце строки
+void str_trim(char* str) {
+    char* start = str;
+    char* end;
+    
+    // Пропускаем пробелы в начале
+    while (isspace(*start)) {
+        start++;
+    }
+    
+    if (*start == '\0') {
+        str[0] = '\0';
+        return;
+    }
+    
+    // Находим конец строки
+    end = start + strlen(start) - 1;
+    
+    // Удаляем пробелы в конце
+    while (end > start && isspace(*end)) {
+        end--;
+    }
+    
+    *(end + 1) = '\0';
+    
+    // Перемещаем строку в начало
+    if (start != str) {
+        memmove(str, start, end - start + 2);
+    }
 }

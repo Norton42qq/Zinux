@@ -1,95 +1,70 @@
-ARCH = x86_64
-GNUEFI = /usr/include/efi
-GNUEFI_LIB = /usr/lib
-
-CC = gcc
-LD = ld
-OBJCOPY = objcopy
-
-CFLAGS = -I$(GNUEFI) \
-         -I$(GNUEFI)/$(ARCH) \
-         -I./include \
-         -I./kernel \
-         -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -Wall \
-         -Wextra -ffreestanding -fno-builtin -maccumulate-outgoing-args -c
-
-LDFLAGS = -nostdlib -znocombreloc -T $(GNUEFI_LIB)/elf_$(ARCH)_efi.lds \
-          -shared -Bsymbolic -L $(GNUEFI_LIB) $(GNUEFI_LIB)/crt0-efi-$(ARCH).o
-
-LIBS = -lefi -lgnuefi
-
-BOOT_EFI = build/BOOTX64.EFI
-BOOT_SO = build/boot.so
-OVMF = /usr/share/edk2-ovmf/x64/OVMF.4m.fd
-
-
-OBJS = build/boot.o build/kernel.o build/console.o build/keyboard.o build/string.o
-
-.PHONY: all clean run dirs
-
-all: dirs $(BOOT_EFI) disk.img
-
-dirs:
-	@mkdir -p build
-
-
-
-build/boot.o: bootloader/boot.c
+ASM      = nasm
+CC       = i686-elf-gcc
+LD       = i686-elf-ld
+ 
+ASMFLAGS = -f elf32
+CFLAGS   = -m32 -std=c11 -ffreestanding -fno-stack-protector -fno-pie -Wall -Wextra -O2 -march=i486 -c
+LDFLAGS  = -m elf_i386 -T linker.ld --oformat binary
+ 
+BOOT_DIR   = boot
+KERNEL_DIR = kernel
+BUILD_DIR  = build
+ 
+KERNEL_OBJ = \
+    $(BUILD_DIR)/kernel_entry.o \
+    $(BUILD_DIR)/kernel.o      \
+    $(BUILD_DIR)/vesa.o        \
+    $(BUILD_DIR)/keyboard.o    \
+	$(BUILD_DIR)/panic.o       \
+    $(BUILD_DIR)/string.o      \
+    $(BUILD_DIR)/system.o      \
+    $(BUILD_DIR)/shell.o       \
+    $(BUILD_DIR)/bios_disk.o   \
+    $(BUILD_DIR)/fat16.o       \
+    $(BUILD_DIR)/zxe.o         \
+    $(BUILD_DIR)/api.o
+ 
+all: $(BUILD_DIR) zinux.img
+ 
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+ 
+$(BUILD_DIR)/stage1.bin: $(BOOT_DIR)/stage1.asm
+	$(ASM) -f bin $< -o $@
+ 
+$(BUILD_DIR)/stage2.bin: $(BOOT_DIR)/stage2.asm
+	$(ASM) -f bin $< -o $@
+ 
+$(BUILD_DIR)/kernel_entry.o: $(KERNEL_DIR)/kernel_entry.asm
+	$(ASM) $(ASMFLAGS) $< -o $@
+ 
+$(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c
 	$(CC) $(CFLAGS) $< -o $@
+ 
+$(BUILD_DIR)/kernel.bin: $(KERNEL_OBJ) linker.ld
+	$(LD) $(LDFLAGS) $(KERNEL_OBJ) -o $@
+ 
+zinux.img: $(BUILD_DIR)/stage1.bin $(BUILD_DIR)/stage2.bin $(BUILD_DIR)/kernel.bin
+	@echo "=== Creating Zinux ==="
+	dd if=/dev/zero of=$@ bs=1M count=64 2>/dev/null
+	dd if=$(BUILD_DIR)/stage1.bin of=$@ conv=notrunc bs=512 seek=0 2>/dev/null
+	dd if=$(BUILD_DIR)/stage2.bin of=$@ conv=notrunc bs=512 seek=1 2>/dev/null
+	dd if=$(BUILD_DIR)/kernel.bin of=$@ conv=notrunc bs=512 seek=9 2>/dev/null
+	mkfs.fat -F16 -n "ZINUX" -S 512 --offset 2048 $@ 2>/dev/null || true
+	
+	mmd -i zinux.img@@1048576 ::/BIN
+	mmd -i zinux.img@@1048576 ::/CONF
+    
 
-build/kernel.o: kernel/kernel.c
-	$(CC) $(CFLAGS) $< -o $@
+	mcopy -i zinux.img@@1048576 programs/zeofetch.zxe ::BIN/ZEOFETCH.zxe
+	mcopy -i zinux.img@@1048576 programs/calc.zxe ::BIN/CALC.zxe
 
-build/console.o: kernel/console.c
-	$(CC) $(CFLAGS) $< -o $@
+	@echo "=== Done! write in terminal make run' ==="
 
-build/keyboard.o: kernel/keyboard.c
-	$(CC) $(CFLAGS) $< -o $@
-
-build/string.o: kernel/string.c
-	$(CC) $(CFLAGS) $< -o $@
-
-
-
-$(BOOT_SO): $(OBJS)
-	$(LD) $(LDFLAGS) $(OBJS) -o $@ $(LIBS)
-
-
-
-$(BOOT_EFI): $(BOOT_SO)
-	$(OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym \
-	           -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc \
-	           --target efi-app-$(ARCH) $< $@
-	@echo "Created: $@"
-	@file $@
-
-
-
-disk.img: $(BOOT_EFI)
-	@echo "Creating disk image..."
-	@dd if=/dev/zero of=disk.img bs=1M count=64 status=none
-	@echo "Creating FAT32 filesystem..."
-	@mkfs.vfat -F 32 -n UEFI disk.img > /dev/null 2>&1
-	@echo "Copying EFI file..."
-	@mmd -i disk.img ::EFI || true
-	@mmd -i disk.img ::EFI/BOOT || true
-	@mcopy -i disk.img $(BOOT_EFI) ::EFI/BOOT/BOOTX64.EFI
-	@echo "Verifying..."
-	@mdir -i disk.img ::EFI/BOOT/
-	@echo "Disk image ready!"
-
-
-
-run: disk.img
-	@echo "Starting QEMU with OVMF..."
-	qemu-system-x86_64 \
-		-bios $(OVMF) \
-		-drive file=disk.img,format=raw,if=ide \
-		-net none \
-		-m 256M \
-		-serial stdio
-
-
+run: zinux.img
+	qemu-system-i386 -machine pc,usb=off -drive file=zinux.img,format=raw,index=0,media=disk -m 64 -vga std
 
 clean:
-	rm -rf build/* disk.img esp
+	rm -rf $(BUILD_DIR) zinux.img
+
+.PHONY: all clean run
