@@ -86,18 +86,18 @@ If everything works, you should see the bootloader starting Zinux.
 ### The hardware on which the system was tested
 - **PC #1**
   > CPU: I5-10400F
-    GPU: AMD Radeon RX550 4GB (Architecture: Buffin)
-    RAM: 16GB DDR4 2666Mhz
+  > GPU: AMD Radeon RX550 4GB (Architecture: Buffin)
+  > RAM: 16GB DDR4 2666Mhz
     Motherboard: Asus PRIME b460m-k
 - **PC #2**
   > CPU: I3-3220
-    GPU: GTX650 1GB
-    RAM: 8GB DDR3 1600Mhz
+  > GPU: GTX650 1GB
+  > RAM: 8GB DDR3 1600Mhz
     Motherboard: Asus P8H77M
 - **Notebook #1** `Asus x550cc`
   > CPU: i3-2365M (UHD 4000)
-    GPU: Nvidia Geforce GT720M
-    RAM: 4GB DDR3 1600Mhz
+  > GPU: Nvidia Geforce GT720M
+  > RAM: 4GB DDR3 1600Mhz
 
 ## --------- Social ---------
 
