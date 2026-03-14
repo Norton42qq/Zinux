@@ -66,7 +66,7 @@ qemu-system-i386 -machine pc,usb=off -drive file=zinux.img,format=raw,index=0,me
 
 ### Start in Real PC
 ```bash
-sudo dd if=zinux.img of=/dev/sdc bs=4M oflag=sync status=progress && sudo sync
+sudo dd if=zinux.img of=/dev/sdX bs=4M oflag=sync status=progress && sudo sync
 ```
 #### in bios
 - Disable secure boot
