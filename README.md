@@ -1,7 +1,7 @@
 # Zinux - Analog "Linux" #1 in Russia
 
 ## ![Logo Image](assets/logo1-256.png)
-[API Documentation](docs/Zinux-SDK-Documentation.md)
+[API Documentation](docs/Zinux-SDK-Documentation.md) • [Инструкция для жителей Великой Руси](README_RU.md)
 
 ## --------- Check List ---------
 
