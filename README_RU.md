@@ -1,141 +1,119 @@
-# Зинукс — Аналоговый «Линукс» #1 на Великой Руси
+# Зинукс - Отечественный аналог «Линукс» №1 в РСФСР
 
-## ![Logo Image](assets/logo1-256.png)
-[API Documentation](docs/Zinux-SDK-Documentation.md) • [Оригинальный readme](README.md)
+## ![Логотип](assets/logo1-256.png)
+[Документация API](docs/Zinux-SDK-Documentation.md) • [Инструкция для иностранного товарища](README.md)
 
-## ——— Свиток Состояния ———
+## --------- Список выполненных задач ---------
 
-### Загрузочная кодировка исправен — 🟢 (Ядро запускает)
-### Ядро исправно — 🟢 (Работает)
-### Драйвер для кнопок — 🟡 (Есмь сложности)
-### Своё расширение для запуска приложений (подобие .exe, .appimage) — 🟡 (SDK или же API неустойчив, аки ветер)
-### Попытки запуска на настоящем ЭВМ — 🟡 (Домашняя: Работает сносно, но непостоянно. Скрижаль походная: Беда с драйвером видения)
+### Рабочий загрузочный код — 🟢 (Запускает ядро системы)
 
----
+### Рабочее ядро — 🟢 (Функционирует в штатном режиме)
 
-## ——— Сборка и Запуск ———
+### Рабочие программы-помощники клавиш — 🟡 (Имеются отдельные недостатки, ведётся работа по устранению)
 
-### Что потребно мастеру
+### Собственное расширение для запуска программ (аналог .exe, .appimage) — 🟡 (Средство Разработки (СДК) и Средство связи (АПИ) могут проявлять нестабильность. Коллектив работает над улучшением.)
 
-- NASM (не ниже 2.15)
-- QEMU (не ниже 5.0)
+### Попытки запуска на реальной ЭВМ — 🟡 (Настольная ЭВМ: работает удовлетворительно, однако не без перебоев. Портативная ЭВМ: замечены проблемы с программой-помощником видеоподсистемы.)
+
+## --------- Сборка и запуск ---------
+
+### Необходимые инструменты
+
+- NASM (>= 2.15)
+- QEMU (>= 5.0)
 - GNU Make
 
 ```bash
-sudo pacman -S nasm, i686-elf-gcc, gcc, make, ld, qemu, mtools, dosfstools, dd
+sudo pacman -S nasm i686-elf-gcc gcc make ld qemu mtools dosfstools dd
 ```
-
 ---
 
-### Возведение системы
-
+### Сборка
 ```bash
-# Возвести систему
+# Сборка системы
 make clean && make
 ```
-
 ```bash
-# Возвести программы
+# Сборка программ
 cd development\ folder/
 make
 ```
-
 ---
 
-### Водружение программ
-
-**Путь первый, простой:**
-
+### Установка программного обеспечения
+**Способ 1:**
 ```bash
 cd development\ folder/
 make install
 ```
-
-**Путь второй, хитрый:**
-
+**Способ 2:**
 ```bash
 mcopy -i zinux.img@@1048576 "file" ::
 ```
-
 ---
 
-### Запуск во QEMU
-
-**Путь первый:**
-
+### Запуск в QEMU
+**Способ 1:**
 ```bash
 make run
 ```
 
-**Путь второй:**
-
+**Способ 2:**
 ```bash
 qemu-system-i386 -machine pc,usb=off -drive file=zinux.img,format=raw,index=0,media=disk -m 640K -vga std
 ```
-
 ---
 
-### Запуск на настоящей ЭВМ
-
+### Запуск на реальной ЭВМ
 ```bash
 sudo dd if=zinux.img of=/dev/sdX bs=4M oflag=sync status=progress && sudo sync
 ```
-
-#### В BIOS (Храме настроек железа):
-
-- Запретить Secure Boot (Охрану строгую)
-- Дозволить CSM (Путь совместимости)
-
+#### Настройки БИОС
+- Отключить функцию «Безопасная загрузка» (Secure Boot) — пережиток буржуазных систем
+- Включить режим совместимости КСМ (CSM)
 ---
 
-### Очищение от скверны
-
-Дабы изничтожить все следы сборки, рекеши:
-
+### Очистка
+Для удаления всех артефактов сборки выполните:
 ```bash
 make clean
 ```
-
 ---
 
-*Коли всё справно — узришь, как загрузчик пробуждает Зинукс.*
+Если все операции выполнены верно, товарищ пользователь наблюдает запуск загрузчика системы Зинукс.
 
 ---
+### Перечень ЭВМ, на которых проводилось тестирование системы
 
-## ——— ЭВМ, на котором испытывалась система ———
+- **ЭВМ №1**
+  > Микропроцессор: I5-10400F
+  > Видеоадаптер: AMD Radeon RX550 4ГБ (Архитектура: Buffin)
+  > ОЗУ: 16ГБ DDR4 2666МГц
+  > Главная плата: Asus PRIME b460m-k
 
-- **Машина первая:**
-> Ум: I5-10400F
-  Очи: AMD Radeon RX550 4GB (Рода Buffin)
-  Память: 16GB DDR4 2666Mhz
-  Основа: Asus PRIME b460m-k
+- **ЭВМ №2**
+  > Микропроцессор: I3-3220
+  > Видеоадаптер: GTX650 1ГБ
+  > ОЗУ: 8ГБ DDR3 1600МГц
+  > Главная плата: Asus P8H77M
 
-- **Машина вторая:**
-> Ум: I3-3220
-  Очи: GTX650 1GB
-  Память: 8GB DDR3 1600Mhz
-  Основа: Asus P8H77M
+- **Портативная ЭВМ №1** `Asus x550cc`
+  > Микропроцессор: i3-2365M (UHD 4000)
+  > Видеоадаптер: Nvidia Geforce GT720M
+  > ОЗУ: 4ГБ DDR3 1600МГц
 
-- **Скрижаль походная первая** `Asus x550cc`:
-> Ум: i3-2365M (UHD 4000)
-  Очи: Nvidia Geforce GT720M
-  Память: 4GB DDR3 1600Mhz
+## --------- Связь с коллективом разработчиков ---------
 
----
+- [Телеграм](https://t.me/Zinux_channel)
 
-## ——— Связи и вести ———
+- [Гитхаб](https://github.com/Norton42qq/Zinux/issues)
 
-- [Телеграм-голубятня](https://t.me/Zinux_channel)
-- [Свиток жалоб на Github](https://github.com/Norton42qq/Zinux/issues)
-
----
-
-## ——— История звёзд ———
+## --------- История звёзд ---------
 
 <a href="https://www.star-history.com/#norton42qq/zinux&type=date&legend=top-left">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&theme=dark&legend=top-left" />
-<source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&legend=top-left" />
-<img alt="Свиток звёздной истории" src="https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&legend=top-left" />
-</picture>
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&legend=top-left" />
+   <img alt="График истории звёзд" src="https://api.star-history.com/svg?repos=norton42qq/zinux&type=date&legend=top-left" />
+ </picture>
 </a>
