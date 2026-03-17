@@ -1,5 +1,5 @@
 #include "panic.h"
-#include "vga.h"
+#include "vesa.h"
 #include "system.h"
 #include <stddef.h>
 
@@ -18,67 +18,129 @@ static const char* exception_names[] = {
 
 static void put_hex(uint32_t v) {
     const char h[] = "0123456789ABCDEF";
-    vga_puts("0x");
+    vesa_print("0x");
     for (int i = 28; i >= 0; i -= 4)
-        vga_putchar(h[(v >> i) & 0xF]);
+        vesa_print_char(h[(v >> i) & 0xF]);
 }
 
+#define PANIC_COLOR_BG        16
+#define PANIC_COLOR_TEXT      17 
+#define PANIC_COLOR_WHITE     19
+#define PANIC_COLOR_REG_KEY   20
+
+static void panic_setup_palette(void) {
+    vesa_set_palette(PANIC_COLOR_BG,      15, 24, 48);     // Тёмно-синий
+    vesa_set_palette(PANIC_COLOR_TEXT,    180, 200, 255);  // Светло-голубой
+    vesa_set_palette(PANIC_COLOR_WHITE,   255, 255, 255);  // Белый
+    vesa_set_palette(PANIC_COLOR_REG_KEY, 255, 220, 50);   // Жёлтый
+}
 static void panic_screen(const char* title, const char* msg, registers_t* regs) {
     disable_interrupts();
 
-    vga_set_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
-    vga_clear();
+    panic_setup_palette();
 
-    for (int i = 0; i < 80; i++) vga_putchar(' ');
-    vga_set_cursor(0, 1);
-    for (int i = 0; i < 80; i++) vga_putchar(' ');
-    vga_set_cursor(2, 1);
-    vga_puts("!!!KERNEL PANIC!!!");
+    vesa_clear(PANIC_COLOR_BG);
 
-    vga_set_cursor(0, 3);
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("  Exception: ");
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts(title);
+    vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+    for (int i = 0; i < 100; i++) vesa_print_char(' ');
+    vesa_set_cursor(0, 1);
+    for (int i = 0; i < 100; i++) vesa_print_char(' ');
+    vesa_set_cursor(2, 1);
+    vesa_print("!!!KERNEL PANIC!!!");
+
+    vesa_set_color(PANIC_COLOR_TEXT, PANIC_COLOR_BG);
+
+    vesa_set_cursor(0, 3);
+    vesa_print("  Exception: ");
+    vesa_print(title);
 
     if (msg) {
-        vga_set_cursor(0, 4);
-        vga_puts("  "); vga_puts(msg);
+        vesa_set_cursor(0, 4);
+        vesa_print("  "); vesa_print(msg);
     }
 
     if (regs) {
-        vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-        vga_set_cursor(0, 6);
-        vga_puts("  Error code: "); put_hex(regs->err_code);
-        vga_puts("    EIP: "); put_hex(regs->eip);
+        vesa_set_color(PANIC_COLOR_TEXT, PANIC_COLOR_BG);
+        vesa_set_cursor(0, 6);
+        vesa_print("  Error code: "); put_hex(regs->err_code);
+        vesa_print("    EIP: "); put_hex(regs->eip);
 
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-        vga_set_cursor(2, 8);
-        vga_puts("EAX="); put_hex(regs->eax);
-        vga_puts("  EBX="); put_hex(regs->ebx);
-        vga_set_cursor(2, 9);
-        vga_puts("ECX="); put_hex(regs->ecx);
-        vga_puts("  EDX="); put_hex(regs->edx);
-        vga_set_cursor(2, 10);
-        vga_puts("ESI="); put_hex(regs->esi);
-        vga_puts("  EDI="); put_hex(regs->edi);
-        vga_set_cursor(2, 11);
-        vga_puts("EBP="); put_hex(regs->ebp);
-        vga_puts("  ESP="); put_hex(regs->esp);
-        vga_set_cursor(2, 12);
-        vga_puts("EIP="); put_hex(regs->eip);
-        vga_puts("  EFL="); put_hex(regs->eflags);
-        vga_set_cursor(2, 13);
-        vga_puts(" CS="); put_hex(regs->cs);
-        vga_puts("   SS="); put_hex(regs->ss);
-        vga_set_cursor(2, 14);
-        vga_puts(" DS="); put_hex(regs->ds);
-        vga_puts("   ES="); put_hex(regs->es);
+        vesa_set_cursor(2, 8);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("EAX=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->eax);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("  EBX=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->ebx);
+
+        vesa_set_cursor(2, 9);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("ECX=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->ecx);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("  EDX=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->edx);
+
+        vesa_set_cursor(2, 10);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("ESI=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->esi);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("  EDI=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->edi);
+
+        vesa_set_cursor(2, 11);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("EBP=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->ebp);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("  ESP=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->esp);
+
+        vesa_set_cursor(2, 12);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("EIP=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->eip);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("  EFL=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->eflags);
+
+        vesa_set_cursor(2, 13);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print(" CS=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->cs);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("   SS=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->ss);
+
+        vesa_set_cursor(2, 14);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print(" DS=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->ds);
+        vesa_set_color(PANIC_COLOR_REG_KEY, PANIC_COLOR_BG);
+        vesa_print("   ES=");
+        vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+        put_hex(regs->es);
     }
 
-    vga_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-    vga_set_cursor(0, 17);
-    vga_puts("The system has stopped working. Restart your computer.");
+    vesa_set_color(PANIC_COLOR_WHITE, PANIC_COLOR_BG);
+    vesa_set_cursor(0, 17);
+    vesa_print("The system has stopped working. Restart your computer.\n\n");
+
+    vesa_print("            %%%%%                \n          %*     %               \n          %    -...%%\n          %#  %..%:...*%*\n           %   %......%+..%      \n           %%   .%.......%%      \n         %%  %-   %%....%        \n       #%     %     %            \n      %*      %      %           \n      % %    %       %           \n     % % %%%  +%%    %#%*        \n     % %%    .....% %:..%        \n        %%:  %....*%...%         \n           *%%%%%#  %%           ");
 
     system_halt();
 }

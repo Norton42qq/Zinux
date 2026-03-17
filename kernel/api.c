@@ -1,5 +1,5 @@
 #include "api.h"
-#include "vga.h"
+#include "vesa.h"
 #include "keyboard.h"
 #include "string.h"
 #include "io.h"
@@ -9,16 +9,16 @@
 #include "system.h"
 
 // Текст
-static void ap_print(const char* s)    { vga_puts(s); }
-static void ap_println(const char* s)  { vga_puts(s); vga_putchar('\n'); }
-static void ap_print_char(char c)      { vga_putchar(c); }
-static void ap_print_hex(uint32_t v)   { vga_put_hex(v); }
+static void ap_print(const char* s)    { vesa_print(s); }
+static void ap_println(const char* s)  { vesa_print(s); vesa_print_char('\n'); }
+static void ap_print_char(char c)      { vesa_print_char(c); }
+static void ap_print_hex(uint32_t v)   { vesa_put_hex(v); }
 static void ap_print_int(int v) {
-    if(v<0){ vga_putchar('-'); v=-v; }
-    vga_put_dec((uint32_t)v);
+    if(v<0){ vesa_print_char('-'); v=-v; }
+    vesa_put_dec((uint32_t)v);
 }
 static void ap_set_color(uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+    vesa_set_color((uint8_t)fg, (uint8_t)bg);
 }
 
 // Ввод
@@ -27,52 +27,52 @@ static void ap_read_line(char* buf, int max_len) {
     int pos = 0;
     while(pos < max_len - 1) {
         char c = keyboard_wait_char();
-        if(c == '\n') { vga_putchar('\n'); break; }
+        if(c == '\n') { vesa_print_char('\n'); break; }
         if(c == '\b') {
-            if(pos > 0) { pos--; vga_backspace(); }
+            if(pos > 0) { pos--; vesa_backspace(); }
             continue;
         }
         if((unsigned char)c >= 32) {
             buf[pos++] = c;
-            vga_putchar(c);
+            vesa_print_char(c);
         }
     }
     buf[pos] = '\0';
 }
 
 // Экран
-static void ap_clear(void)          { vga_clear(); }
-static void ap_set_cur(int x, int y){ vga_set_cursor(x, y); }
-static void ap_get_cur(int* x, int* y){ vga_get_cursor(x, y); }
+static void ap_clear(void)          { vesa_clear(COLOR_BLACK); }
+static void ap_set_cur(int x, int y){ vesa_set_cursor(x, y); }
+static void ap_get_cur(int* x, int* y){ vesa_get_cursor(x, y); }
 
 // TUI отрисовка элементов
 static void ap_draw_box(int x, int y, int w, int h, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+    vesa_set_color((uint8_t)fg, (uint8_t)bg);
     
     // Углы
-    vga_set_cursor(x, y);
-    vga_putchar('\xDA');  // ┌ 
-    vga_set_cursor(x + w - 1, y);
-    vga_putchar('\xBF');  // ┐
-    vga_set_cursor(x, y + h - 1);
-    vga_putchar('\xC0');  // └
-    vga_set_cursor(x + w - 1, y + h - 1);
-    vga_putchar('\xD9');  // ┘
+    vesa_set_cursor(x, y);
+    vesa_print_char('\xDA');  // ┌ 
+    vesa_set_cursor(x + w - 1, y);
+    vesa_print_char('\xBF');  // ┐
+    vesa_set_cursor(x, y + h - 1);
+    vesa_print_char('\xC0');  // └
+    vesa_set_cursor(x + w - 1, y + h - 1);
+    vesa_print_char('\xD9');  // ┘
     
     // Горизонтальные линии
     for(int i = 1; i < w - 1; i++) {
-        vga_set_cursor(x + i, y);
-        vga_putchar('\xC4');  // ─
-        vga_set_cursor(x + i, y + h - 1);
-        vga_putchar('\xC4');
+        vesa_set_cursor(x + i, y);
+        vesa_print_char('\xC4');  // ─
+        vesa_set_cursor(x + i, y + h - 1);
+        vesa_print_char('\xC4');
     }
     
     // Вертикальные линии
     for(int i = 1; i < h - 1; i++) {
-        vga_set_cursor(x, y + i);
-        vga_putchar('\xB3');  // │
-        vga_set_cursor(x + w - 1, y + i);
-        vga_putchar('\xB3');
+        vesa_set_cursor(x, y + i);
+        vesa_print_char('\xB3');  // │
+        vesa_set_cursor(x + w - 1, y + i);
+        vesa_print_char('\xB3');
     }
 }
 
@@ -84,37 +84,37 @@ static void ap_draw_box_titled(int x, int y, int w, int h, const char* title, ui
         int title_len = strlen(title);
         int title_x = x + (w - title_len - 2) / 2;
         
-        vga_set_cursor(title_x, y);
-        vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-        vga_putchar(' ');
-        vga_puts(title);
-        vga_putchar(' ');
+        vesa_set_cursor(title_x, y);
+        vesa_set_color((uint8_t)fg, (uint8_t)bg);
+        vesa_print_char(' ');
+        vesa_print(title);
+        vesa_print_char(' ');
     }
 }
 
 static void ap_fill_rect(int x, int y, int w, int h, char ch, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+    vesa_set_color((uint8_t)fg, (uint8_t)bg);
     for(int row = 0; row < h; row++) {
-        vga_set_cursor(x, y + row);
+        vesa_set_cursor(x, y + row);
         for(int col = 0; col < w; col++) {
-            vga_putchar(ch);
+            vesa_print_char(ch);
         }
     }
 }
 
 static void ap_draw_hline(int x, int y, int len, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-    vga_set_cursor(x, y);
+    vesa_set_color((uint8_t)fg, (uint8_t)bg);
+    vesa_set_cursor(x, y);
     for(int i = 0; i < len; i++) {
-        vga_putchar('\xC4');  // ─
+        vesa_print_char('\xC4');  // ─
     }
 }
 
 static void ap_draw_vline(int x, int y, int len, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+    vesa_set_color((uint8_t)fg, (uint8_t)bg);
     for(int i = 0; i < len; i++) {
-        vga_set_cursor(x, y + i);
-        vga_putchar('\xB3');  // │
+        vesa_set_cursor(x, y + i);
+        vesa_print_char('\xB3');  // │
     }
 }
 
@@ -132,54 +132,54 @@ static void ap_draw_button(int x, int y, const char* text, int selected) {
     uint8_t fg = selected ? 0 : 15;
     uint8_t bg = selected ? 15 : 1;
     
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-    vga_set_cursor(x, y);
-    vga_puts("[ ");
-    vga_puts(text);
-    vga_puts(" ]");
+    vesa_set_color((uint8_t)fg, (uint8_t)bg);
+    vesa_set_cursor(x, y);
+    vesa_print("[ ");
+    vesa_print(text);
+    vesa_print(" ]");
 }
 
 static void ap_draw_input(int x, int y, int w, const char* text, int active) {
     uint8_t fg = active ? 0 : 7;
     uint8_t bg = active ? 7 : 0;
     
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-    vga_set_cursor(x, y);
+    vesa_set_color((uint8_t)fg, (uint8_t)bg);
+    vesa_set_cursor(x, y);
     
     int text_len = strlen(text);
-    vga_puts(text);
+    vesa_print(text);
     // Заполнение пустоты
     for(int i = text_len; i < w; i++) {
-        vga_putchar(' ');
+        vesa_print_char(' ');
     }
     
     // Курсор если активен
     if(active) {
-        vga_set_cursor(x + text_len, y);
+        vesa_set_cursor(x + text_len, y);
     }
 }
 
 static void ap_draw_progress(int x, int y, int w, int percent) {
-    vga_set_cursor(x, y);
-    vga_set_color(7, 0);
-    vga_putchar('[');
+    vesa_set_cursor(x, y);
+    vesa_set_color(7, 0);
+    vesa_print_char('[');
     
     int filled = (w - 2) * percent / 100;
     for(int i = 0; i < w - 2; i++) {
         if(i < filled) {
-            vga_set_color(15, 2);
-            vga_putchar('\xDB');  // █
+            vesa_set_color(15, 2);
+            vesa_print_char('\xDB');  // █
         } else {
-            vga_set_color(8, 0);
-            vga_putchar('\xB0');  // ░
+            vesa_set_color(8, 0);
+            vesa_print_char('\xB0');  // ░
         }
     }
     
-    vga_set_color(7, 0);
-    vga_putchar(']');
-    vga_putchar(' ');
-    vga_put_dec(percent);
-    vga_putchar('%');
+    vesa_set_color(7, 0);
+    vesa_print_char(']');
+    vesa_print_char(' ');
+    vesa_put_dec(percent);
+    vesa_print_char('%');
 }
 
 // Строки

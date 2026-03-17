@@ -1,6 +1,6 @@
 #include "ata.h"
 #include "io.h"
-#include "vga.h"
+#include "vesa.h"
 
 // Primary ATA Bus
 #define ATA_DATA        0x1F0

@@ -68,5 +68,7 @@ void vesa_vsync(void);
 int  vesa_width(void);
 int  vesa_height(void);
 uint8_t* vesa_get_framebuffer(void);
+void vesa_put_dec(uint32_t n);
+void vesa_put_hex(uint32_t n);
 
 #endif

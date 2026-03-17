@@ -1,7 +1,7 @@
 #ifndef SHELL_H
 #define SHELL_H
 
-#include "vga.h"
+#include "vesa.h"
 
 #define SHELL_BUFFER_SIZE   256
 #define MAX_ARGS            16
@@ -10,7 +10,7 @@ typedef struct {
     char       username[32];
     char       hostname[32];
     int        prompt_style;
-    vga_color_t theme_color;
+    uint8_t theme_color;
 } shell_config_t;
 
 extern shell_config_t current_config;

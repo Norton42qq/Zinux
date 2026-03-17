@@ -1,7 +1,7 @@
 #include "zxe.h"
 #include "fat16.h"
 #include "string.h"
-#include "vga.h"
+#include "vesa.h"
 #include "api.h"
 
 // Буфер для загрузки программы

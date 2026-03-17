@@ -1,4 +1,4 @@
-#include "vga.h"
+#include "vesa.h"
 #include "keyboard.h"
 #include "system.h"
 #include "shell.h"
@@ -13,33 +13,33 @@
 #define DISK_BUF_FLAG (*(volatile uint32_t*)0x8004)
 
 static void kstep(const char* msg) {
-    vga_set_color(VGA_COLOR_DARK_GREY, VGA_COLOR_BLACK);
-    vga_puts("  [.] ");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts(msg);
-    vga_puts("...");
+    vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+    vesa_print("  [.] ");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+    vesa_print(msg);
+    vesa_print("...");
 }
 
 static void kok(void) {
-    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    vga_puts(" OK\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+    vesa_print(" OK\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
 }
 
 static void kskip(const char* reason) {
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts(" SKIP");
-    if (reason) { vga_puts(" ("); vga_puts(reason); vga_puts(")"); }
-    vga_puts("\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+    vesa_print(" SKIP");
+    if (reason) { vesa_print(" ("); vesa_print(reason); vesa_print(")"); }
+    vesa_print("\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
 }
 
 void kernel_main(void) {
-    vga_init();
+    vesa_init();
 
-    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    vga_puts("Zinux debug checking\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+    vesa_print("Zinux debug checking\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
 
     kstep("system");    system_init();    kok();
     kstep("keyboard");  keyboard_init();  kok();
@@ -48,11 +48,11 @@ void kernel_main(void) {
         kstep("disk");
         ata_init();
         if (DISK_BUF_FLAG > 0) {
-            vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-            vga_puts(" OK (RAM disk, ");
-            vga_put_dec(DISK_BUF_FLAG / 2);
-            vga_puts("KB)\n");
-            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+            vesa_print(" OK (RAM disk, ");
+            vesa_put_dec(DISK_BUF_FLAG / 2);
+            vesa_print("KB)\n");
+            vesa_set_color(COLOR_WHITE, COLOR_BLACK);
         } else {
             kskip("no BIOS preload, trying ATA PIO");
         }
@@ -73,34 +73,34 @@ void kernel_main(void) {
         {
             int dirty = ata_dirty_count();
             if (dirty > 0) {
-                vga_set_color(VGA_COLOR_DARK_GREY, VGA_COLOR_BLACK);
-                vga_puts("  [~] Syncing init data...");
+                vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+                vesa_print("  [~] Syncing init data...");
                 if (ata_flush() == 0)
-                    vga_puts(" OK\n");
+                    vesa_print(" OK\n");
                 else
-                    vga_puts(" ERR\n");
-                vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+                    vesa_print(" ERR\n");
+                vesa_set_color(COLOR_WHITE, COLOR_BLACK);
             }
         }
 
-        vga_puts("\n");
+        vesa_print("\n");
         shell_run();
 
         int dirty = ata_dirty_count();
         if (dirty > 0) {
-            vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-            vga_puts("  [~] Flushing ");
-            vga_put_dec(dirty);
-            vga_puts(" sectors...");
+            vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+            vesa_print("  [~] Flushing ");
+            vesa_put_dec(dirty);
+            vesa_print(" sectors...");
             int r = ata_flush();
             if (r == 0) {
-                vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-                vga_puts(" OK\n");
+                vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+                vesa_print(" OK\n");
             } else {
-                vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-                vga_puts(" ERRORS\n");
+                vesa_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+                vesa_print(" ERRORS\n");
             }
-            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vesa_set_color(COLOR_WHITE, COLOR_BLACK);
         }
     system_halt();
 }

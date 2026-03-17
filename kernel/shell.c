@@ -1,5 +1,5 @@
 #include "shell.h"
-#include "vga.h"
+#include "vesa.h"
 #include "keyboard.h"
 #include "string.h"
 #include "system.h"
@@ -21,7 +21,7 @@ static void config_default(void){
     strcpy(current_config.username,"user");
     strcpy(current_config.hostname,"zinux");
     current_config.prompt_style=0;
-    current_config.theme_color=VGA_COLOR_LIGHT_GREEN;
+    current_config.theme_color=COLOR_LIGHT_GREEN;
 }
 
 static void parse_kv(char* line){
@@ -40,7 +40,7 @@ static void parse_kv(char* line){
     } else if(strncmp(line,"style=",6)==0){
         current_config.prompt_style=atoi(val);
     } else if(strncmp(line,"color=",6)==0){
-        current_config.theme_color=(vga_color_t)atoi(val);
+        current_config.theme_color=(uint8_t)atoi(val);
     }
 }
 
@@ -76,14 +76,14 @@ void shell_save_config(void){
     cbuf[n]='\0';
     
     if(fat16_write_file("CONF/CONFIG",cbuf,(uint32_t)n)>0){
-        vga_set_color(VGA_COLOR_DARK_GREY,VGA_COLOR_BLACK);
-        vga_puts("  [Config saved to CONF/CONFIG]\n");
-        vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_DARK_GREY,COLOR_BLACK);
+        vesa_print("  [Config saved to CONF/CONFIG]\n");
+        vesa_set_color(COLOR_WHITE,COLOR_BLACK);
         ata_flush();
     } else {
-        vga_set_color(VGA_COLOR_LIGHT_RED,VGA_COLOR_BLACK);
-        vga_puts("  [Failed to save config]\n");
-        vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_LIGHT_RED,COLOR_BLACK);
+        vesa_print("  [Failed to save config]\n");
+        vesa_set_color(COLOR_WHITE,COLOR_BLACK);
     }
 }
 
@@ -113,7 +113,7 @@ static const command_t commands[] = {
     { "mem",     "Show memory information",     cmd_mem },
     { "cpu",     "Show CPU information",        cmd_cpu },
     { "set",     "set user|host|style|color",   cmd_set},
-    { "cd",      "cd <dir> — change directory", cmd_cd},
+    { "cd",      "cd <dir> - change directory", cmd_cd},
     { "ls",      "List files on disk",          cmd_ls },
     { "mkdir",   "mkdir <dir>",                 cmd_mkdir},
     { "cat",     "Display file contents",       cmd_cat },
@@ -123,44 +123,44 @@ static const command_t commands[] = {
 
 // приветствие
 void shell_print_welcome(void) {
-    vga_clear();
-    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("========================================\n");
-    vga_puts("         Welcome to Zinux\n");
-    vga_puts("    NEW RUSSIAN OPERATING SYSTEM\n");
-    vga_puts("========================================\n\n");
+    vesa_clear(COLOR_BLACK);
+    vesa_set_color(COLOR_LIGHT_CYAN, COLOR_BLACK);
+    vesa_print("========================================\n");
+    vesa_print("         Welcome to Zinux\n");
+    vesa_print("    NEW RUSSIAN OPERATING SYSTEM\n");
+    vesa_print("========================================\n\n");
     
-    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    vga_puts("Type 'help' for list of commands.\n\n");
-     vga_puts("\x80 \x81 \x82 \x83 \x84 \x85 \x86 \x87 \x88 \x89 \x8A \x8B \x8C \x8D \x8E \x8F \x90 \x91 \x92 \x93 \x94 \x95 \x96 \x97 \x98 \x99 \x9A \x9B \x9C \x9D \x9E \x9F\n\xA0 \xA1 \xA2 \xA3 \xA4 \xA5 \xA6 \xA7 \xA8 \xA9 \xAA \xAB \xAC \xAD \xAE \xAF \xE0 \xE1 \xE2 \xE3 \xE4 \xE5 \xE6 \xE7 \xE8 \xE9 \xEA \xEB \xEC \xED \xEE \xEF\n");
+    vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+    vesa_print("Type 'help' for list of commands.\n\n");
+     vesa_print("\x80 \x81 \x82 \x83 \x84 \x85 \x86 \x87 \x88 \x89 \x8A \x8B \x8C \x8D \x8E \x8F \x90 \x91 \x92 \x93 \x94 \x95 \x96 \x97 \x98 \x99 \x9A \x9B \x9C \x9D \x9E \x9F\n\xA0 \xA1 \xA2 \xA3 \xA4 \xA5 \xA6 \xA7 \xA8 \xA9 \xAA \xAB \xAC \xAD \xAE \xAF \xE0 \xE1 \xE2 \xE3 \xE4 \xE5 \xE6 \xE7 \xE8 \xE9 \xEA \xEB \xEC \xED \xEE \xEF\n");
    
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
 }
 
 // стили
 void shell_prompt(void) {
-    vga_set_color(current_config.theme_color, VGA_COLOR_BLACK);
+    vesa_set_color(current_config.theme_color, COLOR_BLACK);
     
     switch(current_config.prompt_style) {
         case 1: // user@host >
-            vga_puts(current_config.username);
-            vga_putchar('@');
-            vga_puts(current_config.hostname);
-            vga_puts(" > ");
+            vesa_print(current_config.username);
+            vesa_print_char('@');
+            vesa_print(current_config.hostname);
+            vesa_print(" > ");
             break;
         case 2: // user#
-            vga_puts(current_config.username);
-            vga_puts("\xC8");
+            vesa_print(current_config.username);
+            vesa_print("\xC8");
             break;
         default: // Стандарт: user@host:~$
-            vga_puts(current_config.username);
-            vga_putchar('@');
-            vga_puts(current_config.hostname);
-            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-            vga_puts(":~$ ");
+            vesa_print(current_config.username);
+            vesa_print_char('@');
+            vesa_print(current_config.hostname);
+            vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+            vesa_print(":~$ ");
             break;
     }
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
 }
 
 // Парс оболочки
@@ -181,20 +181,20 @@ static void read_line(void){
     while(1){
         char c=keyboard_wait_char();
         if(c=='\n'){
-            vga_putchar('\n');
+            vesa_print_char('\n');
             input_buffer[input_pos]='\0';
             return;
         }
         if(c=='\b'){
             if(input_pos>0){
                 input_pos--;
-                vga_backspace();
+                vesa_backspace();
             }
             continue;
         }
         if(input_pos<SHELL_BUFFER_SIZE-1){
             input_buffer[input_pos++]=c;
-            vga_putchar(c);
+            vesa_print_char(c);
         }
     }
 }
@@ -260,12 +260,12 @@ void shell_execute(const char* cmdline) {
     }
     
     // Команда не найдена
-    vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-    vga_puts("Command not found: ");
-    vga_puts(argv[0]);
-    vga_puts("\n");
-    vga_puts("Type 'help' or 'ls' for available commands.\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+    vesa_print("Command not found: ");
+    vesa_print(argv[0]);
+    vesa_print("\n");
+    vesa_print("Type 'help' or 'ls' for available commands.\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
 }
 
 // Инициализация
@@ -288,8 +288,8 @@ void shell_run(void) {
 void cmd_cd(int argc, char* argv[]) {
     // Без аргументов показывает текущий путь
     if (argc < 2) {
-        vga_puts(current_dir);
-        vga_puts("\n");
+        vesa_print(current_dir);
+        vesa_print("\n");
         return;
     }
 
@@ -326,9 +326,9 @@ void cmd_cd(int argc, char* argv[]) {
             strcat(newpath, target);
             strcpy(dirpart, target);
         } else {
-            vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-            vga_puts("cd: cannot go deeper than one level\n");
-            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vesa_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+            vesa_print("cd: cannot go deeper than one level\n");
+            vesa_set_color(COLOR_WHITE, COLOR_BLACK);
             return;
         }
     }
@@ -353,65 +353,65 @@ void cmd_cd(int argc, char* argv[]) {
         int l = strlen(current_dir);
         if (l > 1 && current_dir[l-1] == '/') current_dir[l-1] = '\0';
     } else {
-        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        vga_puts("cd: ");
-        vga_puts(target);
-        vga_puts(": No such directory\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+        vesa_print("cd: ");
+        vesa_print(target);
+        vesa_print(": No such directory\n");
+        vesa_set_color(COLOR_WHITE, COLOR_BLACK);
     }
 }
 
 void cmd_set(int argc,char* argv[]){
     if(argc<3){
-        vga_puts("Usage: set <user|host|style|color> <value>\n"); 
+        vesa_print("Usage: set <user|host|style|color> <value>\n"); 
         return;
     }
     if(strcmp(argv[1],"user")==0){
         strncpy(current_config.username,argv[2],31);
         current_config.username[31]='\0';
-        vga_puts("Username: ");
-        vga_puts(current_config.username);
-        vga_puts("\n");
+        vesa_print("Username: ");
+        vesa_print(current_config.username);
+        vesa_print("\n");
     } else if(strcmp(argv[1],"host")==0){
         strncpy(current_config.hostname,argv[2],31);
         current_config.hostname[31]='\0';
-        vga_puts("Hostname: ");
-        vga_puts(current_config.hostname);
-        vga_puts("\n");
+        vesa_print("Hostname: ");
+        vesa_print(current_config.hostname);
+        vesa_print("\n");
     } else if(strcmp(argv[1],"style")==0){
         current_config.prompt_style=atoi(argv[2]);
-        vga_puts("Style: ");
-        vga_put_dec(current_config.prompt_style);
-        vga_puts("\n");
+        vesa_print("Style: ");
+        vesa_put_dec(current_config.prompt_style);
+        vesa_print("\n");
     } else if(strcmp(argv[1],"color")==0){
-        current_config.theme_color=(vga_color_t)atoi(argv[2]);
-        vga_puts("Color: ");
-        vga_put_dec((uint32_t)current_config.theme_color);
-        vga_puts("\n");
+        current_config.theme_color=(uint8_t)atoi(argv[2]);
+        vesa_print("Color: ");
+        vesa_put_dec((uint32_t)current_config.theme_color);
+        vesa_print("\n");
     } else {
-        vga_puts("Unknown: ");
-        vga_puts(argv[1]);
-        vga_puts("\n");
+        vesa_print("Unknown: ");
+        vesa_print(argv[1]);
+        vesa_print("\n");
         return;
     }
     shell_save_config();
 }
 
 void cmd_mkdir(int argc,char* argv[]){
-    if (!fs_ready) { vga_puts("No filesystem mounted.\n"); return; }
+    if (!fs_ready) { vesa_print("No filesystem mounted.\n"); return; }
     if(argc<2){
-        vga_puts("Usage: mkdir <dir>\n");
+        vesa_print("Usage: mkdir <dir>\n");
         return;
     }
     if(fat16_mkdir(argv[1])==0){
-        vga_puts("Created: /");
-        vga_puts(argv[1]);
-        vga_puts("\n");
+        vesa_print("Created: /");
+        vesa_print(argv[1]);
+        vesa_print("\n");
         ata_flush();
     } else {
-        vga_set_color(VGA_COLOR_LIGHT_RED,VGA_COLOR_BLACK);
-        vga_puts("Failed\n");
-        vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_LIGHT_RED,COLOR_BLACK);
+        vesa_print("Failed\n");
+        vesa_set_color(COLOR_WHITE,COLOR_BLACK);
     }
 }
 
@@ -419,35 +419,35 @@ void cmd_help(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts("\n=== Available Commands ===\n\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+    vesa_print("\n=== Available Commands ===\n\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
     
     for (int i = 0; commands[i].name != NULL; i++) {
-        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-        vga_puts("  ");
-        vga_puts(commands[i].name);
+        vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+        vesa_print("  ");
+        vesa_print(commands[i].name);
         
         // Выравнивание
         int len = strlen(commands[i].name);
         for (int j = len; j < 12; j++) {
-            vga_putchar(' ');
+            vesa_print_char(' ');
         }
         
-        vga_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-        vga_puts("- ");
-        vga_puts(commands[i].description);
-        vga_puts("\n");
+        vesa_set_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+        vesa_print("- ");
+        vesa_print(commands[i].description);
+        vesa_print("\n");
     }
     
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+    vesa_print("\n");
 }
 
 void cmd_clear(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
-    vga_clear();
+    vesa_clear(COLOR_BLACK);
 }
 
 void cmd_info(int argc, char* argv[]) {
@@ -456,54 +456,54 @@ void cmd_info(int argc, char* argv[]) {
     
     system_info_t* info = system_get_info();
     
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts("\n=== System Information ===\n\n");
+    vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+    vesa_print("\n=== System Information ===\n\n");
     
     // Процессор
-    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("CPU:\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("  Vendor:   ");
-    vga_puts((char*)info->cpu_vendor);
-    vga_puts("\n\n");
+    vesa_set_color(COLOR_LIGHT_CYAN, COLOR_BLACK);
+    vesa_print("CPU:\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+    vesa_print("  Vendor:   ");
+    vesa_print((char*)info->cpu_vendor);
+    vesa_print("\n\n");
     
     // Память
-    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("Memory:\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("  Lower:    ");
-    vga_put_dec(info->mem_lower);
-    vga_puts(" KB\n");
-    vga_puts("  Upper:    ");
-    vga_put_dec(info->mem_upper);
-    vga_puts(" KB\n\n");
+    vesa_set_color(COLOR_LIGHT_CYAN, COLOR_BLACK);
+    vesa_print("Memory:\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+    vesa_print("  Lower:    ");
+    vesa_put_dec(info->mem_lower);
+    vesa_print(" KB\n");
+    vesa_print("  Upper:    ");
+    vesa_put_dec(info->mem_upper);
+    vesa_print(" KB\n\n");
 }
 
 void cmd_echo(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
-        vga_puts(argv[i]);
+        vesa_print(argv[i]);
         if (i < argc - 1) {
-            vga_putchar(' ');
+            vesa_print_char(' ');
         }
     }
-    vga_puts("\n");
+    vesa_print("\n");
 }
 
 void cmd_reboot(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts("\nSyncing disk...");
+    vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+    vesa_print("\nSyncing disk...");
     int dirty = ata_dirty_count();
     if (dirty > 0) {
         int r = ata_flush();
-        if (r == 0) vga_puts(" OK\n");
-        else        vga_puts(" ERRORS\n");
+        if (r == 0) vesa_print(" OK\n");
+        else        vesa_print(" ERRORS\n");
     } else {
-        vga_puts(" nothing to sync\n");
+        vesa_print(" nothing to sync\n");
     }
-    vga_puts("Rebooting system...\n");
+    vesa_print("Rebooting system...\n");
     
     for (volatile int i = 0; i < 10000000; i++);
     system_reboot();
@@ -514,15 +514,15 @@ void cmd_halt(int argc, char* argv[]) {
     (void)argv;
     int dirty = ata_dirty_count();
     if (dirty > 0) {
-        vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-        vga_puts("\nSyncing disk...");
+        vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+        vesa_print("\nSyncing disk...");
         int r = ata_flush();
-        if (r == 0) vga_puts(" OK\n");
-        else        vga_puts(" ERRORS\n");
+        if (r == 0) vesa_print(" OK\n");
+        else        vesa_print(" ERRORS\n");
     }
-    vga_clear();
-    vga_set_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
-    vesa_puts(225, 250, "\nIt's now safe to turn off your computer\n", COLOR_BROWN, COLOR_BLACK);
+    vesa_clear(COLOR_BLACK);
+    vesa_set_color(COLOR_BROWN, COLOR_BLACK);
+    vesa_puts(225, 250, "It's now safe to turn off your computer", COLOR_BROWN, COLOR_BLACK);
     system_halt();
 }
 
@@ -544,16 +544,16 @@ void cmd_time(int argc, char* argv[]) {
     uint8_t minute = bcd_to_bin(cmos_read(0x02));
     uint8_t hour = bcd_to_bin(cmos_read(0x04));
     
-    vga_puts("Current time: ");
-    if (hour < 10) vga_putchar('0');
-    vga_put_dec(hour);
-    vga_putchar(':');
-    if (minute < 10) vga_putchar('0');
-    vga_put_dec(minute);
-    vga_putchar(':');
-    if (second < 10) vga_putchar('0');
-    vga_put_dec(second);
-    vga_puts("\n");
+    vesa_print("Current time: ");
+    if (hour < 10) vesa_print_char('0');
+    vesa_put_dec(hour);
+    vesa_print_char(':');
+    if (minute < 10) vesa_print_char('0');
+    vesa_put_dec(minute);
+    vesa_print_char(':');
+    if (second < 10) vesa_print_char('0');
+    vesa_put_dec(second);
+    vesa_print("\n");
 }
 
 void cmd_date(int argc, char* argv[]) {
@@ -567,24 +567,24 @@ void cmd_date(int argc, char* argv[]) {
     
     if (century == 0) century = 20;
     
-    vga_puts("Current date: ");
-    if (day < 10) vga_putchar('0');
-    vga_put_dec(day);
-    vga_putchar('/');
-    if (month < 10) vga_putchar('0');
-    vga_put_dec(month);
-    vga_putchar('/');
-    vga_put_dec(century);
-    if (year < 10) vga_putchar('0');
-    vga_put_dec(year);
-    vga_puts("\n");
+    vesa_print("Current date: ");
+    if (day < 10) vesa_print_char('0');
+    vesa_put_dec(day);
+    vesa_print_char('/');
+    if (month < 10) vesa_print_char('0');
+    vesa_put_dec(month);
+    vesa_print_char('/');
+    vesa_put_dec(century);
+    if (year < 10) vesa_print_char('0');
+    vesa_put_dec(year);
+    vesa_print("\n");
 }
 
 void cmd_version(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     
-    vga_puts("Zinux version ??? Beta-branch\n");
+    vesa_print("Zinux version ??? Beta-branch\n");
 }
 
 void cmd_mem(int argc, char* argv[]) {
@@ -593,22 +593,22 @@ void cmd_mem(int argc, char* argv[]) {
     
     system_info_t* info = system_get_info();
     
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts("\n=== Memory Information ===\n\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+    vesa_print("\n=== Memory Information ===\n\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
     
-    vga_puts("Conventional memory: ");
-    vga_put_dec(info->mem_lower);
-    vga_puts(" KB\n");
+    vesa_print("Conventional memory: ");
+    vesa_put_dec(info->mem_lower);
+    vesa_print(" KB\n");
     
-    vga_puts("Extended memory:     ");
-    vga_put_dec(info->mem_upper);
-    vga_puts(" KB\n");
+    vesa_print("Extended memory:     ");
+    vesa_put_dec(info->mem_upper);
+    vesa_print(" KB\n");
     
     uint32_t total = (info->mem_lower + info->mem_upper + 1024) / 1024;
-    vga_puts("Total memory:        ~");
-    vga_put_dec(total);
-    vga_puts(" MB\n\n");
+    vesa_print("Total memory:        ~");
+    vesa_put_dec(total);
+    vesa_print(" MB\n\n");
 }
 
 void cmd_cpu(int argc, char* argv[]) {
@@ -617,34 +617,34 @@ void cmd_cpu(int argc, char* argv[]) {
     
     system_info_t* info = system_get_info();
     
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts("\n=== CPU Information ===\n\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+    vesa_print("\n=== CPU Information ===\n\n");
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
     
-    vga_puts("Vendor:   ");
-    vga_puts((char*)info->cpu_vendor);
-    vga_puts("\n");
+    vesa_print("Vendor:   ");
+    vesa_print((char*)info->cpu_vendor);
+    vesa_print("\n");
     
-    vga_puts("Features: ");
-    if (info->cpu_features & (1 << 0)) vga_puts("FPU ");
-    if (info->cpu_features & (1 << 4)) vga_puts("TSC ");
-    if (info->cpu_features & (1 << 5)) vga_puts("MSR ");
-    if (info->cpu_features & (1 << 23)) vga_puts("MMX ");
-    if (info->cpu_features & (1 << 25)) vga_puts("SSE ");
-    if (info->cpu_features & (1 << 26)) vga_puts("SSE2 ");
-    vga_puts("\n\n");
+    vesa_print("Features: ");
+    if (info->cpu_features & (1 << 0)) vesa_print("FPU ");
+    if (info->cpu_features & (1 << 4)) vesa_print("TSC ");
+    if (info->cpu_features & (1 << 5)) vesa_print("MSR ");
+    if (info->cpu_features & (1 << 23)) vesa_print("MMX ");
+    if (info->cpu_features & (1 << 25)) vesa_print("SSE ");
+    if (info->cpu_features & (1 << 26)) vesa_print("SSE2 ");
+    vesa_print("\n\n");
 }
 
 void cmd_ls(int argc, char* argv[]) {
-    if (!fs_ready) { vga_puts("No filesystem mounted.\n"); return; }
+    if (!fs_ready) { vesa_print("No filesystem mounted.\n"); return; }
     (void)argc; (void)argv;
     fat16_list_dir(current_dir);
 }
 
 void cmd_cat(int argc, char* argv[]) {
-    if (!fs_ready) { vga_puts("No filesystem mounted.\n"); return; }
+    if (!fs_ready) { vesa_print("No filesystem mounted.\n"); return; }
     if (argc < 2) {
-        vga_puts("Usage: cat <filename>\n");
+        vesa_print("Usage: cat <filename>\n");
         return;
     }
     char filepath[64];
@@ -662,26 +662,26 @@ void cmd_cat(int argc, char* argv[]) {
     filepath[63] = '\0';
 
     if (!fat16_file_exists(filepath)) {
-        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        vga_puts("File not found: ");
-        vga_puts(filepath);
-        vga_puts("\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+        vesa_print("File not found: ");
+        vesa_print(filepath);
+        vesa_print("\n");
+        vesa_set_color(COLOR_WHITE, COLOR_BLACK);
         return;
     }
     // проверка размера файла
     uint32_t size = fat16_file_size(filepath);
     if (size == 0) {
-        vga_puts("File is empty\n");
+        vesa_print("File is empty\n");
         return;
     }
     
     // Ограничение размера для безопасности
     if (size > 64 * 1024) {
         size = 64 * 1024;
-        vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-        vga_puts("Warning: showing first 64KB only\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+        vesa_print("Warning: showing first 64KB only\n");
+        vesa_set_color(COLOR_WHITE, COLOR_BLACK);
     }
     
     // буфер
@@ -690,45 +690,45 @@ void cmd_cat(int argc, char* argv[]) {
     // Чтение файла
     int bytes_read = fat16_read_file(filepath, file_buffer, size);
     if (bytes_read < 0) {
-        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        vga_puts("Error reading file\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+        vesa_print("Error reading file\n");
+        vesa_set_color(COLOR_WHITE, COLOR_BLACK);
         return;
     }
     
     // Вывод содержимого
-    vga_puts("\n");
+    vesa_print("\n");
     for (int i = 0; i < bytes_read; i++) {
         char c = file_buffer[i];
         if (c >= 32 || c == '\n' || c == '\r' || c == '\t') {
-            vga_putchar(c);
+            vesa_print_char(c);
         }
     }
-    vga_puts("\n");
+    vesa_print("\n");
 }
 
 void cmd_sync(int argc, char* argv[]) {
     (void)argc; (void)argv;
     int dirty = ata_dirty_count();
     if (dirty == 0) {
-        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-        vga_puts("Disk is clean, nothing to sync\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+        vesa_print("Disk is clean, nothing to sync\n");
+        vesa_set_color(COLOR_WHITE, COLOR_BLACK);
         return;
     }
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts("Syncing ");
-    vga_put_dec((uint32_t)dirty);
-    vga_puts(" sector(s) to disk...");
+    vesa_set_color(COLOR_YELLOW, COLOR_BLACK);
+    vesa_print("Syncing ");
+    vesa_put_dec((uint32_t)dirty);
+    vesa_print(" sector(s) to disk...");
     int r = ata_flush();
     if (r == 0) {
-        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-        vga_puts(" OK\n");
+        vesa_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+        vesa_print(" OK\n");
     } else {
-        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        vga_puts(" FAILED (");
-        vga_put_dec((uint32_t)(-r));
-        vga_puts(" errors)\n");
+        vesa_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+        vesa_print(" FAILED (");
+        vesa_put_dec((uint32_t)(-r));
+        vesa_print(" errors)\n");
     }
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
 }

@@ -1,7 +1,7 @@
 #include "fat16.h"
 #include "ata.h"
 #include "string.h"
-#include "vga.h"
+#include "vesa.h"
 
 #define SECTOR_SIZE           512
 #define FAT16_PARTITION_START 2048
@@ -359,11 +359,11 @@ mkdir_scan_done:;
 
 int fat16_list_dir(const char* path) {
     int count=0;
-    vga_set_color(VGA_COLOR_YELLOW,VGA_COLOR_BLACK);
-    vga_puts("\n  Directory of /");
-    if(path&&path[0]&&!(path[0]=='/'&&path[1]=='\0')){vga_puts(path);}
-    vga_puts("\n\n");
-    vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
+    vesa_set_color(COLOR_YELLOW,COLOR_BLACK);
+    vesa_print("\n  Directory of /");
+    if(path&&path[0]&&!(path[0]=='/'&&path[1]=='\0')){vesa_print(path);}
+    vesa_print("\n\n");
+    vesa_set_color(COLOR_WHITE,COLOR_BLACK);
 
     // Корень
     if(!path||!path[0]||(path[0]=='/'&&!path[1])){
@@ -375,27 +375,27 @@ int fat16_list_dir(const char* path) {
                 if((uint8_t)E[i].name[0]==0xE5||E[i].attributes==0x0F||E[i].attributes&0x08) continue;
                 char fn[13]; from83(E[i].name,fn);
                 if(E[i].attributes&0x10){
-                    vga_set_color(VGA_COLOR_LIGHT_CYAN,VGA_COLOR_BLACK);
-                    vga_puts("  ");vga_puts(fn);
-                    for(int p=strlen(fn);p<14;p++)vga_putchar(' ');
-                    vga_puts("<DIR>\n");
+                    vesa_set_color(COLOR_LIGHT_CYAN,COLOR_BLACK);
+                    vesa_print("  ");vesa_print(fn);
+                    for(int p=strlen(fn);p<14;p++)vesa_print_char(' ');
+                    vesa_print("<DIR>\n");
                 } else {
                     int fl=strlen(fn);
                     if(fl>=4&&strcmp(&fn[fl-4],".ZXE")==0)
-                        vga_set_color(VGA_COLOR_LIGHT_GREEN,VGA_COLOR_BLACK);
+                        vesa_set_color(COLOR_LIGHT_GREEN,COLOR_BLACK);
                     else
-                        vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
-                    vga_puts("  ");vga_puts(fn);
-                    for(int p=strlen(fn);p<14;p++)vga_putchar(' ');
-                    vga_set_color(VGA_COLOR_DARK_GREY,VGA_COLOR_BLACK);
-                    vga_put_dec(E[i].file_size);vga_puts(" bytes\n");
+                        vesa_set_color(COLOR_WHITE,COLOR_BLACK);
+                    vesa_print("  ");vesa_print(fn);
+                    for(int p=strlen(fn);p<14;p++)vesa_print_char(' ');
+                    vesa_set_color(COLOR_DARK_GREY,COLOR_BLACK);
+                    vesa_put_dec(E[i].file_size);vesa_print(" bytes\n");
                 }
                 count++;
             }
         }
 root_ls_done:;
-        vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
-        vga_puts("\n  "); vga_put_dec(count); vga_puts(" item(s)\n\n");
+        vesa_set_color(COLOR_WHITE,COLOR_BLACK);
+        vesa_print("\n  "); vesa_put_dec(count); vesa_print(" item(s)\n\n");
         return count;
     }
 
@@ -414,7 +414,7 @@ root_ls_done:;
             if(memcmp(E[i].name,d83,8)==0){de=E[i];df=1;break;}
         }
     }
-    if(!df){vga_puts("  Not found\n\n");return -1;}
+    if(!df){vesa_print("  Not found\n\n");return -1;}
 
     uint16_t clus=de.cluster_low;
     while(clus<0xFFF8){
@@ -428,21 +428,21 @@ root_ls_done:;
                 char fn[13]; from83(E[i].name,fn);
                 int fl=strlen(fn);
                 if(fl>=4&&strcmp(&fn[fl-4],".ZXE")==0)
-                    vga_set_color(VGA_COLOR_LIGHT_GREEN,VGA_COLOR_BLACK);
+                    vesa_set_color(COLOR_LIGHT_GREEN,COLOR_BLACK);
                 else
-                    vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
-                vga_puts("  ");vga_puts(fn);
-                for(int p=strlen(fn);p<14;p++)vga_putchar(' ');
-                vga_set_color(VGA_COLOR_DARK_GREY,VGA_COLOR_BLACK);
-                vga_put_dec(E[i].file_size);vga_puts(" bytes\n");
+                    vesa_set_color(COLOR_WHITE,COLOR_BLACK);
+                vesa_print("  ");vesa_print(fn);
+                for(int p=strlen(fn);p<14;p++)vesa_print_char(' ');
+                vesa_set_color(COLOR_DARK_GREY,COLOR_BLACK);
+                vesa_put_dec(E[i].file_size);vesa_print(" bytes\n");
                 count++;
             }
         }
         clus=fat_get(clus);
     }
 subls_done:
-    vga_set_color(VGA_COLOR_WHITE,VGA_COLOR_BLACK);
-    vga_puts("\n  "); vga_put_dec(count); vga_puts(" item(s)\n\n");
+    vesa_set_color(COLOR_WHITE,COLOR_BLACK);
+    vesa_print("\n  "); vesa_put_dec(count); vesa_print(" item(s)\n\n");
     return count;
 }
 
