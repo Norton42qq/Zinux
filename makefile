@@ -15,9 +15,10 @@ KERNEL_OBJ = \
     $(BUILD_DIR)/kernel.o      \
     $(BUILD_DIR)/vesa.o        \
     $(BUILD_DIR)/keyboard.o    \
-	$(BUILD_DIR)/panic.o       \
+    $(BUILD_DIR)/panic.o       \
     $(BUILD_DIR)/string.o      \
     $(BUILD_DIR)/system.o      \
+    $(BUILD_DIR)/font_data.o   \
     $(BUILD_DIR)/shell.o       \
     $(BUILD_DIR)/bios_disk.o   \
     $(BUILD_DIR)/fat16.o       \
