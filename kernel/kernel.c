@@ -1,58 +1,77 @@
-#include "vga.h"
-#include "keyboard.h"
+#include "drivers/video.h"
+#include "drivers/keyboard.h"
+#include "drivers/ata.h"
+#include "drivers/mouse.h"
+#include "shell/shell.h"
 #include "system.h"
-#include "shell.h"
 #include "string.h"
-#include "ata.h"
 #include "fat16.h"
 #include "zxe.h"
 #include "api.h"
 #include "io.h"
 #include "panic.h"
+#include "pit.h"
+#include "../libc/memory.h"
 
-#define DISK_BUF_FLAG (*(volatile uint32_t*)0x8004)
+#define DISK_BUF_FLAG  (*(volatile uint32_t*)0x8014)
 
 static void kstep(const char* msg) {
-    vga_set_color(VGA_COLOR_DARK_GREY, VGA_COLOR_BLACK);
-    vga_puts("  [.] ");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts(msg);
-    vga_puts("...");
+    video_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+    video_print("  [.] ");
+    video_set_color(COLOR_WHITE, COLOR_BLACK);
+    video_print(msg);
+    video_print("...");
 }
 
 static void kok(void) {
-    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    vga_puts(" OK\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    video_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+    video_print(" OK\n");
+    video_set_color(COLOR_WHITE, COLOR_BLACK);
 }
 
 static void kskip(const char* reason) {
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    vga_puts(" SKIP");
-    if (reason) { vga_puts(" ("); vga_puts(reason); vga_puts(")"); }
-    vga_puts("\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    video_set_color(COLOR_YELLOW, COLOR_BLACK);
+    video_print(" SKIP");
+    if (reason) { video_print(" ("); video_print(reason); video_print(")"); }
+    video_print("\n");
+    video_set_color(COLOR_WHITE, COLOR_BLACK);
 }
 
 void kernel_main(void) {
-    vga_init();
+     int ret = video_init();
+    if (ret != 0) {
+        // Вывод напрямую через bios vga
+        volatile char* vga = (volatile char*)0xB8000;
+        const char* msg = "VIDEO INIT FAILED";
+        for (int i = 0; msg[i]; i++) {
+            vga[i*2] = msg[i];
+            vga[i*2+1] = 0x4F; // белый на красном
+        }
+        for(;;) __asm__("hlt");
+    }
 
-    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    vga_puts("Zinux debug checking\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    video_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+    video_print("Zinux debug checking\n");
+    video_set_color(COLOR_WHITE, COLOR_BLACK);
 
+    kstep("memory");   memory_init();    kok();
     kstep("system");    system_init();    kok();
     kstep("keyboard");  keyboard_init();  kok();
+    kstep("mouse");
+    mouse_init(video_width(), video_height());
+    if (mouse_is_ready()) kok();
+    else kskip("init failed");
 
     kstep("IRQ"); enable_interrupts(); kok();
+    kstep("PIT"); pit_init(PIT_TARGET_HZ); kok();
         kstep("disk");
         ata_init();
         if (DISK_BUF_FLAG > 0) {
-            vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-            vga_puts(" OK (RAM disk, ");
-            vga_put_dec(DISK_BUF_FLAG / 2);
-            vga_puts("KB)\n");
-            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            video_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+            video_print(" OK (RAM disk, ");
+            video_put_dec(DISK_BUF_FLAG / 2);
+            video_print("KB)\n");
+            video_set_color(COLOR_WHITE, COLOR_BLACK);
         } else {
             kskip("no BIOS preload, trying ATA PIO");
         }
@@ -73,34 +92,34 @@ void kernel_main(void) {
         {
             int dirty = ata_dirty_count();
             if (dirty > 0) {
-                vga_set_color(VGA_COLOR_DARK_GREY, VGA_COLOR_BLACK);
-                vga_puts("  [~] Syncing init data...");
+                video_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+                video_print("  [~] Syncing init data...");
                 if (ata_flush() == 0)
-                    vga_puts(" OK\n");
+                    video_print(" OK\n");
                 else
-                    vga_puts(" ERR\n");
-                vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+                    video_print(" ERR\n");
+                video_set_color(COLOR_WHITE, COLOR_BLACK);
             }
         }
 
-        vga_puts("\n");
+        video_print("\n");
         shell_run();
 
         int dirty = ata_dirty_count();
         if (dirty > 0) {
-            vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-            vga_puts("  [~] Flushing ");
-            vga_put_dec(dirty);
-            vga_puts(" sectors...");
+            video_set_color(COLOR_YELLOW, COLOR_BLACK);
+            video_print("  [~] Flushing ");
+            video_put_dec(dirty);
+            video_print(" sectors...");
             int r = ata_flush();
             if (r == 0) {
-                vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-                vga_puts(" OK\n");
+                video_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);
+                video_print(" OK\n");
             } else {
-                vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-                vga_puts(" ERRORS\n");
+                video_set_color(COLOR_LIGHT_RED, COLOR_BLACK);
+                video_print(" ERRORS\n");
             }
-            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            video_set_color(COLOR_WHITE, COLOR_BLACK);
         }
     system_halt();
 }

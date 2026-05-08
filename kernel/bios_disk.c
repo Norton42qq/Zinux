@@ -1,15 +1,15 @@
-#include "ata.h"
+#include "drivers/ata.h"
 #include "string.h"
 #include "io.h"
 
 // Адреса для stage2
-#define DISK_BUF_FLAG   (*(volatile uint32_t*)0x8004)
-#define DISK_BUF_DRIVE  (*(volatile uint8_t* )0x8008)
+#define DISK_BUF_FLAG   (*(volatile uint32_t*)0x8014)
+#define DISK_BUF_DRIVE  (*(volatile uint8_t* )0x8018)
 #define DISK_BUF_BASE   ((uint8_t*)0x50000)
 #define SECTOR_SIZE     512
 #define FAT_PART_START  2048
 // ----
-#define MAX_DIRTY       512
+#define MAX_DIRTY       1024
 static uint8_t dirty_bitmap[MAX_DIRTY / 8 + 1];
 
 static inline void dirty_set(uint32_t i) {
@@ -184,7 +184,7 @@ int ata_flush(void) {
             // Путь 1: ATA PIO - прямая запись из PM, без переключений
             ok = hw_write(lba, sect);
         } else {
-            // Путь 2: INT 13h через трамплин PM→RM→PM
+            // Путь 2: INT 13h через трамплин PM->RM->PM
             // Сектор должен быть <1MB
             ok = pm_to_rm_write(lba, boot_drive, sect);
         }

@@ -1,12 +1,15 @@
 #include "zxe.h"
 #include "fat16.h"
 #include "string.h"
-#include "vga.h"
+#include "drivers/video.h"
 #include "api.h"
+#include "io.h"
+#include "system.h"
 
 // Буфер для загрузки программы
 static uint8_t* program_space = (uint8_t*)ZXE_LOAD_ADDRESS;
 static char last_error[64];
+#define ZXE_USER_STACK_TOP 0x2F0000
 
 // Инициализация
 void zxe_init(void) {
@@ -54,26 +57,26 @@ int zxe_run(const char* filename, int argc, char* argv[]) {
         strcpy(last_error, "File not found");
         return ZXE_NOT_FOUND;
     }
-    
     int bytes = fat16_read_file(fname, program_space, ZXE_MAX_SIZE);
+
     if (bytes < 0) {
         strcpy(last_error, "Read error");
         return ZXE_ERROR;
     }
-    
+
     zxe_header_t* header = (zxe_header_t*)program_space;
+
     int result = zxe_validate(header);
     if (result != ZXE_OK) {
         return result;
     }
-    
-    // Инициализация API (заполняем таблицу функций по 0x100000)
+
     api_init();
     uint8_t* entry_point = program_space + header->header_size + header->entry_offset;
-    
-    // Вызов
-    zxe_entry_fn entry_fn = (zxe_entry_fn)entry_point;
-    int exit_code = entry_fn(argc, argv);
+
+    (void)argc;
+    (void)argv;
+    int exit_code = run_user_program((uint32_t)entry_point, ZXE_USER_STACK_TOP, 0, (char**)0);
     
     return exit_code;
 }

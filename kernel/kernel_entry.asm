@@ -39,6 +39,91 @@ keyboard_handler:
     popa
     iret
 
+global timer_handler
+extern pit_tick
+
+timer_handler:
+    pusha
+    call pit_tick
+    mov  al, 0x20
+    out  0x20, al
+    popa
+    iret
+
+global syscall_handler
+extern syscall_putc
+extern syscall_api_call
+
+syscall_handler:
+    pusha
+    push ds
+    push es
+    push fs
+    push gs
+
+    mov edx, eax
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    cmp edx, 1
+    je .sys_putc
+    cmp edx, 2
+    je .sys_exit
+    cmp edx, 3
+    je .sys_api
+    jmp .done
+
+.sys_putc:
+    push ebx
+    call syscall_putc
+    add esp, 4
+    xor eax, eax
+    jmp .done
+
+.sys_exit:
+    mov [saved_user_exit_code], ebx
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov esp, [saved_kernel_esp]
+    jmp dword [saved_kernel_eip]
+
+.sys_api:
+    push ecx
+    push ebx
+    call syscall_api_call
+    add esp, 8
+    jmp .done
+
+.done:
+    mov [esp + 44], eax
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popa
+    iret
+
+global mouse_irq_handler
+extern mouse_handler
+
+mouse_irq_handler:
+    pusha
+    push dword 0
+    call mouse_handler
+    add  esp, 4
+    mov  al, 0x20
+    out  0xA0, al
+    mov  al, 0x20
+    out  0x20, al
+    popa
+    iret
+
 global load_idt
 load_idt:
     mov eax, [esp + 4]
@@ -55,8 +140,74 @@ disable_interrupts:
     cli
     ret
 
-; Обработчики исключений CPU (INT 0-19)
+global run_user_program
+global abort_user_program
 
+USER_CODE_SEL equ 0x1A
+USER_DATA_SEL equ 0x22
+USER_STACK_TOP equ 0x9E000
+
+section .bss
+saved_kernel_esp: resd 1
+saved_kernel_eip: resd 1
+saved_user_exit_code: resd 1
+
+section .text
+run_user_program:
+    cli
+    mov dword [saved_user_exit_code], 0
+    mov [saved_kernel_esp], esp
+    mov dword [saved_kernel_eip], .return_from_user_program
+
+    mov esi, [esp + 4]
+    mov ecx, [esp + 8]
+
+    mov ax, USER_DATA_SEL
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    push dword USER_DATA_SEL
+    push ecx
+    pushfd
+    pop eax
+    or  eax, 0x00000200
+    push eax
+    push dword USER_CODE_SEL
+    push esi
+    iret
+
+.user_ret_trampoline:
+    mov ebx, eax
+    mov eax, 2
+    int 0x80
+.ret_hang:
+    jmp .ret_hang
+
+.return_from_user_program:
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    sti
+    mov eax, [saved_user_exit_code]
+    ret
+
+abort_user_program:
+    cli
+    mov eax, [esp + 4]
+    mov [saved_user_exit_code], eax
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov esp, [saved_kernel_esp]
+    jmp dword [saved_kernel_eip]
+
+; Обработчики исключений CPU (INT 0-19)
 extern exception_handler
 
 %macro ISR_NO_ERR 1
@@ -99,32 +250,28 @@ ISR_NO_ERR 18
 ISR_NO_ERR 19
 
 isr_common:
-    ; Сохраняем регистры
     pusha
     push ds
     push es
     push fs
     push gs
 
-    ; Загрузка сегментов ядра
     mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
 
-    ; Передача указателя на фрейм регистров
     push esp
     call exception_handler
     add esp, 4
 
-    ; Восстанавливаем
     pop gs
     pop fs
     pop es
     pop ds
     popa
-    add esp, 8 ; убираем int_num и err_code
+    add esp, 8
     iret
 
 global pm_to_rm_write ; просто прыгает в трамплин по 0x5000

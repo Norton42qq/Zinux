@@ -5,7 +5,7 @@
 
 #define ZXE_MAGIC           0x01455A58
 #define ZXE_VERSION         1
-#define ZXE_MAX_SIZE        (64 * 1024) // 64 KB
+#define ZXE_MAX_SIZE        (2048 * 1024) // 64 KB
 #define ZXE_LOAD_ADDRESS    0x200000 // 2 MB
 #define ZXE_OK              0
 #define ZXE_ERROR           -1

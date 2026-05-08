@@ -1,24 +1,25 @@
 #include "api.h"
-#include "vga.h"
-#include "keyboard.h"
+#include "drivers/video.h"
+#include "drivers/keyboard.h"
+#include "drivers/mouse.h"
 #include "string.h"
 #include "io.h"
 #include "fat16.h"
-#include "ata.h"
-#include "shell.h"
+#include "drivers/ata.h"
+#include "shell/shell.h"
 #include "system.h"
 
 // Текст
-static void ap_print(const char* s)    { vga_puts(s); }
-static void ap_println(const char* s)  { vga_puts(s); vga_putchar('\n'); }
-static void ap_print_char(char c)      { vga_putchar(c); }
-static void ap_print_hex(uint32_t v)   { vga_put_hex(v); }
+static void ap_print(const char* s)    { vesa_print(s); }
+static void ap_println(const char* s)  { vesa_print(s); vesa_print_char('\n'); }
+static void ap_print_char(char c)      { vesa_print_char(c); }
+static void ap_print_hex(uint32_t v)   { vesa_put_hex(v); }
 static void ap_print_int(int v) {
-    if(v<0){ vga_putchar('-'); v=-v; }
-    vga_put_dec((uint32_t)v);
+    if(v<0){ vesa_print_char('-'); v=-v; }
+    vesa_put_dec((uint32_t)v);
 }
-static void ap_set_color(uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+static void ap_set_color(uint32_t fg, uint32_t bg) {
+    vesa_set_color(fg, bg);
 }
 
 // Ввод
@@ -27,56 +28,56 @@ static void ap_read_line(char* buf, int max_len) {
     int pos = 0;
     while(pos < max_len - 1) {
         char c = keyboard_wait_char();
-        if(c == '\n') { vga_putchar('\n'); break; }
+        if(c == '\n') { vesa_print_char('\n'); break; }
         if(c == '\b') {
-            if(pos > 0) { pos--; vga_backspace(); }
+            if(pos > 0) { pos--; vesa_backspace(); }
             continue;
         }
         if((unsigned char)c >= 32) {
             buf[pos++] = c;
-            vga_putchar(c);
+            vesa_print_char(c);
         }
     }
     buf[pos] = '\0';
 }
 
 // Экран
-static void ap_clear(void)          { vga_clear(); }
-static void ap_set_cur(int x, int y){ vga_set_cursor(x, y); }
-static void ap_get_cur(int* x, int* y){ vga_get_cursor(x, y); }
+static void ap_clear(void)          { vesa_clear(COLOR_BLACK); }
+static void ap_set_cur(int x, int y){ vesa_set_cursor(x, y); }
+static void ap_get_cur(int* x, int* y){ vesa_get_cursor(x, y); }
 
 // TUI отрисовка элементов
-static void ap_draw_box(int x, int y, int w, int h, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+static void ap_draw_box(int x, int y, int w, int h, uint32_t fg, uint32_t bg) {
+    vesa_set_color(fg, bg);
     
     // Углы
-    vga_set_cursor(x, y);
-    vga_putchar('\xDA');  // ┌ 
-    vga_set_cursor(x + w - 1, y);
-    vga_putchar('\xBF');  // ┐
-    vga_set_cursor(x, y + h - 1);
-    vga_putchar('\xC0');  // └
-    vga_set_cursor(x + w - 1, y + h - 1);
-    vga_putchar('\xD9');  // ┘
+    vesa_set_cursor(x, y);
+    vesa_print_char('\xDA');  // ┌ 
+    vesa_set_cursor(x + w - 1, y);
+    vesa_print_char('\xBF');  // ┐
+    vesa_set_cursor(x, y + h - 1);
+    vesa_print_char('\xC0');  // └
+    vesa_set_cursor(x + w - 1, y + h - 1);
+    vesa_print_char('\xD9');  // ┘
     
     // Горизонтальные линии
     for(int i = 1; i < w - 1; i++) {
-        vga_set_cursor(x + i, y);
-        vga_putchar('\xC4');  // ─
-        vga_set_cursor(x + i, y + h - 1);
-        vga_putchar('\xC4');
+        vesa_set_cursor(x + i, y);
+        vesa_print_char('\xC4');  // 
+        vesa_set_cursor(x + i, y + h - 1);
+        vesa_print_char('\xC4');
     }
     
     // Вертикальные линии
     for(int i = 1; i < h - 1; i++) {
-        vga_set_cursor(x, y + i);
-        vga_putchar('\xB3');  // │
-        vga_set_cursor(x + w - 1, y + i);
-        vga_putchar('\xB3');
+        vesa_set_cursor(x, y + i);
+        vesa_print_char('\xB3');  // │
+        vesa_set_cursor(x + w - 1, y + i);
+        vesa_print_char('\xB3');
     }
 }
 
-static void ap_draw_box_titled(int x, int y, int w, int h, const char* title, uint8_t fg, uint8_t bg) {
+static void ap_draw_box_titled(int x, int y, int w, int h, const char* title, uint32_t fg, uint32_t bg) {
     ap_draw_box(x, y, w, h, fg, bg);
     
     // Заголовок приложения
@@ -84,102 +85,102 @@ static void ap_draw_box_titled(int x, int y, int w, int h, const char* title, ui
         int title_len = strlen(title);
         int title_x = x + (w - title_len - 2) / 2;
         
-        vga_set_cursor(title_x, y);
-        vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-        vga_putchar(' ');
-        vga_puts(title);
-        vga_putchar(' ');
+        vesa_set_cursor(title_x, y);
+        vesa_set_color(fg, bg);
+        vesa_print_char(' ');
+        vesa_print(title);
+        vesa_print_char(' ');
     }
 }
 
-static void ap_fill_rect(int x, int y, int w, int h, char ch, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+static void ap_fill_rect(int x, int y, int w, int h, char ch, uint32_t fg, uint32_t bg) {
+    vesa_set_color(fg, bg);
     for(int row = 0; row < h; row++) {
-        vga_set_cursor(x, y + row);
+        vesa_set_cursor(x, y + row);
         for(int col = 0; col < w; col++) {
-            vga_putchar(ch);
+            vesa_print_char(ch);
         }
     }
 }
 
-static void ap_draw_hline(int x, int y, int len, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-    vga_set_cursor(x, y);
+static void ap_draw_hline(int x, int y, int len, uint32_t fg, uint32_t bg) {
+    vesa_set_color(fg, bg);
+    vesa_set_cursor(x, y);
     for(int i = 0; i < len; i++) {
-        vga_putchar('\xC4');  // ─
+        vesa_print_char('\xC4');  // 
     }
 }
 
-static void ap_draw_vline(int x, int y, int len, uint8_t fg, uint8_t bg) {
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
+static void ap_draw_vline(int x, int y, int len, uint32_t fg, uint32_t bg) {
+    vesa_set_color(fg, bg);
     for(int i = 0; i < len; i++) {
-        vga_set_cursor(x, y + i);
-        vga_putchar('\xB3');  // │
+        vesa_set_cursor(x, y + i);
+        vesa_print_char('\xB3');  // │
     }
 }
 
 // TUI
 static void ap_draw_window(int x, int y, int w, int h, const char* title) {
     // Тень
-    ap_fill_rect(x + 2, y + 1, w, h, '\xB0', 8, 0);
+    ap_fill_rect(x + 2, y + 1, w, h, '\xB0', COLOR_DARK_GREY, COLOR_BLACK);
     
     // Окно
-    ap_fill_rect(x, y, w, h, ' ', 15, 1);
-    ap_draw_box_titled(x, y, w, h, title, 15, 1);
+    ap_fill_rect(x, y, w, h, ' ', COLOR_WHITE, COLOR_BLUE);
+    ap_draw_box_titled(x, y, w, h, title, COLOR_WHITE, COLOR_BLUE);
 }
 
 static void ap_draw_button(int x, int y, const char* text, int selected) {
-    uint8_t fg = selected ? 0 : 15;
-    uint8_t bg = selected ? 15 : 1;
+    uint32_t fg = selected ? COLOR_BLACK : COLOR_WHITE;
+    uint32_t bg = selected ? COLOR_WHITE : COLOR_BLUE;
     
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-    vga_set_cursor(x, y);
-    vga_puts("[ ");
-    vga_puts(text);
-    vga_puts(" ]");
+    vesa_set_color(fg, bg);
+    vesa_set_cursor(x, y);
+    vesa_print("[ ");
+    vesa_print(text);
+    vesa_print(" ]");
 }
 
 static void ap_draw_input(int x, int y, int w, const char* text, int active) {
-    uint8_t fg = active ? 0 : 7;
-    uint8_t bg = active ? 7 : 0;
+    uint32_t fg = active ? COLOR_BLACK     : COLOR_LIGHT_GREY;
+    uint32_t bg = active ? COLOR_LIGHT_GREY : COLOR_BLACK;
     
-    vga_set_color((vga_color_t)fg, (vga_color_t)bg);
-    vga_set_cursor(x, y);
+    vesa_set_color(fg, bg);
+    vesa_set_cursor(x, y);
     
     int text_len = strlen(text);
-    vga_puts(text);
+    vesa_print(text);
     // Заполнение пустоты
     for(int i = text_len; i < w; i++) {
-        vga_putchar(' ');
+        vesa_print_char(' ');
     }
     
     // Курсор если активен
     if(active) {
-        vga_set_cursor(x + text_len, y);
+        vesa_set_cursor(x + text_len, y);
     }
 }
 
 static void ap_draw_progress(int x, int y, int w, int percent) {
-    vga_set_cursor(x, y);
-    vga_set_color(7, 0);
-    vga_putchar('[');
+    vesa_set_cursor(x, y);
+    vesa_set_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+    vesa_print_char('[');
     
     int filled = (w - 2) * percent / 100;
     for(int i = 0; i < w - 2; i++) {
         if(i < filled) {
-            vga_set_color(15, 2);
-            vga_putchar('\xDB');  // █
+            vesa_set_color(COLOR_WHITE, COLOR_GREEN);
+            vesa_print_char('\xDB');  // █
         } else {
-            vga_set_color(8, 0);
-            vga_putchar('\xB0');  // ░
+            vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+            vesa_print_char('\xB0');  // ░
         }
     }
     
-    vga_set_color(7, 0);
-    vga_putchar(']');
-    vga_putchar(' ');
-    vga_put_dec(percent);
-    vga_putchar('%');
+    vesa_set_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+    vesa_print_char(']');
+    vesa_print_char(' ');
+    vesa_put_dec(percent);
+    vesa_print_char('%');
 }
 
 // Строки
@@ -235,7 +236,7 @@ static void ap_get_sysinfo(sys_info_t* info) {
     strcpy(info->username,   current_config.username);
     strcpy(info->hostname,   current_config.hostname);
     strcpy(info->os_name,    "Zinux");
-    strcpy(info->os_version, "0.1");
+    strcpy(info->os_version, "0.2");
     extern const char* shell_get_cwd(void);
     strcpy(info->cwd, shell_get_cwd());
     system_info_t* si = system_get_info();
@@ -254,6 +255,284 @@ static void ap_set_hostname(const char* name) {
     strncpy(current_config.hostname, name, 31);
     current_config.hostname[31] = '\0';
     shell_save_config();
+}
+
+//Пиксельная графика
+static void ap_gfx_pixel(int x, int y, uint32_t color) {
+    video_pixel(x, y, color);
+}
+static void ap_gfx_line(int x0, int y0, int x1, int y1, uint32_t color) {
+    video_line(x0, y0, x1, y1, color);
+}
+static void ap_gfx_rect(int x, int y, int w, int h, uint32_t color) {
+    video_rect(x, y, w, h, color);
+}
+static void ap_gfx_fillrect(int x, int y, int w, int h, uint32_t color) {
+    video_fillrect(x, y, w, h, color);
+}
+static void ap_gfx_circle(int cx, int cy, int r, uint32_t color) {
+    video_circle(cx, cy, r, color);
+}
+static void ap_gfx_fillcircle(int cx, int cy, int r, uint32_t color) {
+    video_fillcircle(cx, cy, r, color);
+}
+static void ap_gfx_char(int x, int y, char c, uint32_t fg, uint32_t bg) {
+    video_putchar(x / 8, y / 16, c, fg, bg);
+}
+static void ap_gfx_text(int x, int y, const char* s, uint32_t fg, uint32_t bg) {
+    video_puts(x / 8, y / 16, s, fg, bg);
+}
+static int  ap_gfx_width(void)  { return video_width(); }
+static int  ap_gfx_height(void) { return video_height(); }
+
+static void ap_gfx_blit(int x, int y, int w, int h, const uint32_t* pixels) {
+    const VideoInfo* vi = video_get_info();
+    for (int row = 0; row < h; row++) {
+        for (int col = 0; col < w; col++) {
+            int px = x + col;
+            int py = y + row;
+            if ((unsigned)px < (unsigned)vi->width &&
+                (unsigned)py < (unsigned)vi->height) {
+                video_pixel(px, py, pixels[row * w + col]);
+            }
+        }
+    }
+}
+
+// GUI
+
+static void ap_gui_label(int x, int y, const char* text, uint32_t color) {
+    vesa_set_cursor(x, y);
+    vesa_set_color(color, COLOR_BLACK);
+    vesa_print(text);
+}
+
+static void ap_gui_checkbox(int x, int y, const char* label, int checked) {
+    vesa_set_cursor(x, y);
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+    vesa_print_char('[');
+    vesa_set_color(checked ? COLOR_LIGHT_GREEN : COLOR_DARK_GREY, COLOR_BLACK);
+    vesa_print_char(checked ? '\xFB' : ' ');   // ✓ или пробел
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+    vesa_print_char(']');
+    vesa_print_char(' ');
+    vesa_print(label);
+}
+
+static void ap_gui_menubar(int y, const char** items, int count, int selected) {
+    vesa_set_cursor(0, y);
+    vesa_set_color(COLOR_BLACK, COLOR_LIGHT_GREY);
+    // Заполнить всю строку
+    for (int i = 0; i < 80; i++) vesa_print_char(' ');
+    vesa_set_cursor(0, y);
+    for (int i = 0; i < count; i++) {
+        if (i == selected)
+            vesa_set_color(COLOR_WHITE, COLOR_BLUE);
+        else
+            vesa_set_color(COLOR_BLACK, COLOR_LIGHT_GREY);
+        vesa_print_char(' ');
+        vesa_print(items[i]);
+        vesa_print_char(' ');
+    }
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+}
+
+static void ap_gui_tabbar(int x, int y, int w, const char** tabs, int count, int active) {
+    int cx = x;
+    for (int i = 0; i < count; i++) {
+        int tlen = strlen(tabs[i]) + 2;
+        if (i == active) {
+            vesa_set_color(COLOR_WHITE, COLOR_BLUE);
+        } else {
+            vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+        }
+        vesa_set_cursor(cx, y);
+        vesa_print_char(' ');
+        vesa_print(tabs[i]);
+        vesa_print_char(' ');
+        // нижняя черта у неактивных
+        if (i != active) {
+            vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+            vesa_set_cursor(cx, y + 1);
+            for (int j = 0; j < tlen; j++) vesa_print_char('\xC4');
+        }
+        cx += tlen;
+    }
+    // Остаток строки
+    vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+    vesa_set_cursor(cx, y + 1);
+    for (int j = cx; j < x + w; j++) vesa_print_char('\xC4');
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+}
+
+// Строковые утилиты
+static void ap_str_concat(char* dst, const char* src)  { strcat(dst, src); }
+static int  ap_str_ncompare(const char* a, const char* b, int n) { return strncmp(a, b, n); }
+static int  ap_str_to_int(const char* s)   { return atoi(s); }
+static void ap_int_to_str(int v, char* buf) { itoa(v, buf, 10); }
+
+// Мышь 
+static void ap_mouse_get_state(mouse_state_t* out) {
+    if (!out) return;
+    MouseState ms = mouse_get_state();
+    out->x       = ms.x;
+    out->y       = ms.y;
+    out->buttons = ms.buttons;
+    out->wheel   = ms.wheel;
+}
+static void ap_mouse_set_pos(int x, int y)     { mouse_set_pos(x, y); }
+static void ap_mouse_set_sens(int sx, int sy)  { mouse_set_sensitivity(sx, sy); }
+
+// Курсор мыши: стрелка 8×12
+static void cursor_xor_pixel(int px, int py) {
+    const VideoInfo* vi = video_get_info();
+    if (!vi) return;
+    if ((unsigned)px >= (unsigned)vi->width || (unsigned)py >= (unsigned)vi->height) return;
+    uint32_t old = video_getpixel(px, py);
+    video_pixel(px, py, old ^ 0x00FFFFFFu);
+}
+
+static void ap_gui_draw_cursor(int x, int y) {
+    for (int i = 0; i < 12; i++) {
+        cursor_xor_pixel(x,     y + i);
+        cursor_xor_pixel(x + 1, y + i);
+    }
+    for (int i = 0; i < 12; i++) {
+        if (i < 12) cursor_xor_pixel(x,     y + i);
+        if (i < 10) cursor_xor_pixel(x + 1, y + i);
+        if (i < 8)  cursor_xor_pixel(x + 2, y + i);
+        if (i < 6)  cursor_xor_pixel(x + 3, y + i);
+        if (i < 4)  cursor_xor_pixel(x + 4, y + i);
+        if (i < 2)  cursor_xor_pixel(x + 5, y + i);
+    }
+    cursor_xor_pixel(x + 2, y + 8);
+    cursor_xor_pixel(x + 3, y + 9);
+    cursor_xor_pixel(x + 2, y + 9);
+    cursor_xor_pixel(x + 3, y + 10);
+    cursor_xor_pixel(x + 4, y + 10);
+    cursor_xor_pixel(x + 3, y + 11);
+    cursor_xor_pixel(x + 4, y + 11);
+    cursor_xor_pixel(x + 5, y + 11);
+    cursor_xor_pixel(x + 1, y + 8);
+    cursor_xor_pixel(x + 2, y + 7);
+    cursor_xor_pixel(x + 3, y + 8);
+    cursor_xor_pixel(x + 2, y + 10);
+    cursor_xor_pixel(x + 4, y + 9);
+    cursor_xor_pixel(x + 5, y + 10);
+    cursor_xor_pixel(x + 6, y + 11);
+}
+
+static void ap_gui_listbox(int x, int y, int w, int h,
+                            const char** items, int count, int selected) {
+    for (int i = 0; i < h; i++) {
+        int idx = i;
+        if (idx < count) {
+            uint32_t fg = (idx == selected) ? COLOR_BLACK  : COLOR_WHITE;
+            uint32_t bg = (idx == selected) ? COLOR_LIGHT_CYAN : COLOR_BLACK;
+            vesa_set_color(fg, bg);
+            vesa_set_cursor(x, y + i);
+            // Вывести элемент, обрезать/дополнить до ширины w
+            int len = strlen(items[idx]);
+            int j = 0;
+            for (; j < len && j < w; j++)
+                vesa_print_char(items[idx][j]);
+            for (; j < w; j++)
+                vesa_print_char(' ');
+        } else {
+            vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+            vesa_set_cursor(x, y + i);
+            for (int j = 0; j < w; j++) vesa_print_char(' ');
+        }
+    }
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+}
+
+// Вертикальный скроллбар, координаты символьные
+static void ap_gui_scrollbar(int x, int y, int h, int total, int visible, int pos) {
+    vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+    vesa_set_cursor(x, y);
+    vesa_print_char('\x1E'); // ▲
+    for (int i = 1; i < h - 1; i++) {
+        vesa_set_cursor(x, y + i);
+        vesa_print_char('\xB0'); // ░
+    }
+    vesa_set_cursor(x, y + h - 1);
+    vesa_print_char('\x1F'); // ▼
+
+    // Ползунок
+    if (total > visible && h > 2) {
+        int track = h - 2;
+        int thumb_h = track * visible / total;
+        if (thumb_h < 1) thumb_h = 1;
+        int thumb_y = 1 + (track - thumb_h) * pos / (total - visible);
+        vesa_set_color(COLOR_LIGHT_GREY, COLOR_DARK_GREY);
+        for (int i = 0; i < thumb_h; i++) {
+            vesa_set_cursor(x, y + thumb_y + i);
+            vesa_print_char('\xDB'); // █
+        }
+    }
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+}
+
+// Выпадающее контекстное меню, координаты символьные
+static void ap_gui_popup_menu(int x, int y, const char** items, int count, int selected) {
+    // Найти максимальную ширину
+    int w = 6;
+    for (int i = 0; i < count; i++) {
+        int l = strlen(items[i]) + 4;
+        if (l > w) w = l;
+    }
+    // Тень
+    vesa_set_color(COLOR_DARK_GREY, COLOR_BLACK);
+    for (int i = 0; i < count + 2; i++) {
+        vesa_set_cursor(x + w, y + 1 + i);
+        vesa_print_char(' ');
+        vesa_set_cursor(x + w + 1, y + 1 + i);
+        vesa_print_char(' ');
+    }
+    // Рамка
+    ap_draw_box(x, y, w, count + 2, COLOR_WHITE, COLOR_BLACK);
+    // Пункты
+    for (int i = 0; i < count; i++) {
+        uint32_t fg = (i == selected) ? COLOR_BLACK  : COLOR_WHITE;
+        uint32_t bg = (i == selected) ? COLOR_LIGHT_GREY : COLOR_BLACK;
+        vesa_set_color(fg, bg);
+        vesa_set_cursor(x + 1, y + 1 + i);
+        vesa_print_char(' ');
+        int len = strlen(items[i]);
+        for (int j = 0; j < len && j < w - 3; j++)
+            vesa_print_char(items[i][j]);
+        for (int j = len; j < w - 3; j++)
+            vesa_print_char(' ');
+        vesa_print_char(' ');
+    }
+    vesa_set_color(COLOR_WHITE, COLOR_BLACK);
+}
+
+// Заголовок окна
+static void ap_gui_titlebar(int x, int y, int w, const char* title, int active) {
+    int h = 18;
+    uint32_t bg   = active ? RGB(0, 0, 128) : RGB(80, 80, 80);
+    uint32_t light = active ? RGB(0, 0, 200) : RGB(110, 110, 110);
+    uint32_t dark  = active ? RGB(0, 0, 80)  : RGB(50, 50, 50);
+
+    // Градиент заголовка (3 полосы)
+    video_fillrect(x,     y,     w, 6,  light);
+    video_fillrect(x,     y + 6, w, 6,  bg);
+    video_fillrect(x,     y + 12, w, h - 12, dark);
+
+    // Текст заголовка
+    int tx = x + 4;
+    int ty = y + 1;
+    uint32_t tc = COLOR_WHITE;
+    video_puts(tx / 8, ty / 16, title, tc, bg);
+
+    // Кнопка закрытия [X]
+    int bx = x + w - 18;
+    int by = y + 2;
+    video_fillrect(bx, by, 14, 14, RGB(180, 40, 40));
+    video_rect    (bx, by, 14, 14, RGB(220, 80, 80));
+    video_puts((bx + 3) / 8, (by + 1) / 16, "X", COLOR_WHITE, RGB(180, 40, 40));
 }
 
 // Таблица команд
@@ -307,6 +586,41 @@ void api_setup_table(void) {
     t->get_sysinfo  = ap_get_sysinfo;
     t->set_username = ap_set_username;
     t->set_hostname = ap_set_hostname;
+
+    // Пиксельная графика
+    t->gfx_pixel      = ap_gfx_pixel;
+    t->gfx_line       = ap_gfx_line;
+    t->gfx_rect       = ap_gfx_rect;
+    t->gfx_fillrect   = ap_gfx_fillrect;
+    t->gfx_circle     = ap_gfx_circle;
+    t->gfx_fillcircle = ap_gfx_fillcircle;
+    t->gfx_char       = ap_gfx_char;
+    t->gfx_text       = ap_gfx_text;
+    t->gfx_width      = ap_gfx_width;
+    t->gfx_height     = ap_gfx_height;
+    t->gfx_blit       = ap_gfx_blit;
+
+    // GUI виджеты
+    t->gui_label     = ap_gui_label;
+    t->gui_checkbox  = ap_gui_checkbox;
+    t->gui_menubar   = ap_gui_menubar;
+    t->gui_tabbar    = ap_gui_tabbar;
+    t->gui_draw_cursor = ap_gui_draw_cursor;
+    t->gui_listbox     = ap_gui_listbox;
+    t->gui_scrollbar   = ap_gui_scrollbar;
+    t->gui_popup_menu  = ap_gui_popup_menu;
+    t->gui_titlebar    = ap_gui_titlebar;
+
+    // Строковые утилиты
+    t->str_concat   = ap_str_concat;
+    t->str_ncompare = ap_str_ncompare;
+    t->str_to_int   = ap_str_to_int;
+    t->int_to_str   = ap_int_to_str;
+
+    // Мышь
+    t->mouse_get_state = ap_mouse_get_state;
+    t->mouse_set_pos   = ap_mouse_set_pos;
+    t->mouse_set_sens  = ap_mouse_set_sens;
 }
 
 void api_init(void) {

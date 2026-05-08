@@ -3,10 +3,12 @@
 
 KERNEL_OFFSET   equ 0x1000
 LFB_STORE       equ 0x8000
-DISK_BUF_FLAG   equ 0x8004
+VIDEO_INFO_ADDR equ 0x8000
+DISK_BUF_FLAG   equ 0x8014
+DISK_BUF_DRIVE  equ 0x8018
 
 FAT_LBA_START   equ 2048
-FAT_SECTORS     equ 384
+FAT_SECTORS     equ 1024
 
 FAT_BUF_SEG     equ 0x5000
 FAT_BUF_OFF     equ 0x0000
@@ -25,15 +27,45 @@ menu2_txt:      db '  [2] Reboot PC                 ', 0
 hint_txt:       db 'Use 1/2 or arrows, Enter=select ', 0
 loading_txt:    db 'Loading kernel... ', 0
 disk_txt:       db 'Loading disk...   ', 0
-vesa_txt:       db 'Setting VESA...   ', 0
+vesa_txt:       db 'Setting video...   ', 0
 ok_txt:         db 'OK', 0
 skip_txt:       db 'SKIP', 0
 err_txt:        db 'ERROR', 0
-reboot_txt:     db 'Rebooting...', 0
-vesa_fail_txt:  db 'VESA init failed! Halting.', 13, 10, 0
+reboot_txt:     db 'Rebouting...', 0
+vesa_fail_txt:  db 'video init failed! Halting.', 13, 10, 0
 
 vbe_ctrl_info:  times 512 db 0
 vbe_mode_info:  times 256 db 0
+
+; --- Таблица разрешений экрана ---
+mode_wishlist:
+    dw 1920, 1080, 32
+    dw 1920, 1080, 24
+    dw 1920, 1080, 16
+    dw 1600,  900, 32
+    dw 1600,  900, 16
+    dw 1440, 1050, 32
+    dw 1440, 1050, 16
+    dw 1440,  900, 32
+    dw 1440,  900, 16
+    dw 1280,  720, 32
+    dw 1280,  720, 24
+    dw 1280,  720, 16
+    dw 1024,  768, 32
+    dw 1024,  768, 16
+    dw  800,  600, 32
+    dw  800,  600, 16
+    dw  800,  600,  8
+    dw  640,  480, 32
+    dw  640,  480, 16
+    dw  640,  480,  8
+    dw 0
+
+vi_found_mode:  dw 0
+vi_wish_w:      dw 0
+vi_wish_h:      dw 0
+vi_wish_bpp:    dw 0
+vi_modelist_ptr: dd 0
 
 align 4
 dap:
@@ -126,7 +158,6 @@ do_boot:
     mov si, disk_txt
     call print_at
     call load_fat_to_ram
-    ; Игнорируем ошибку (USB может не поддерживать)
     mov dh, 10
     mov dl, 42
     cmp dword [DISK_BUF_FLAG], 0
@@ -162,7 +193,12 @@ do_boot:
     jmp enter_pm
 
 .vesa_fail:
-    call vesa_fail_txt
+    mov dh, 11
+    mov dl, 42
+    mov si, err_txt
+    mov bl, 0x0C
+    call print_at_color
+    mov cx, 0x8000
 .pause2: nop
     loop .pause2
     jmp enter_pm
@@ -253,44 +289,197 @@ load_kernel:
     stc
     ret
 
-;--------------------
-; Видеодрайвер
-;--------------------
 vesa_init:
-    mov ax, 0x4F00
+    ; получение VBE controller info
+    mov  ax, 0x4F00
     push ds
-    pop es
-    mov di, vbe_ctrl_info
-    int 0x10
-    cmp ax, 0x004F
-    jne .fail
+    pop  es
+    mov  di, vbe_ctrl_info
+    int  0x10
+    cmp  ax, 0x004F
+    jne  .fail
 
-    mov ax, 0x4F01
-    mov cx, 0x0103
+    ; VideoModePtr в vbe_ctrl_info+0x0E (off) / +0x10 (seg)
+
+    movzx eax, word [vbe_ctrl_info + 0x10]   ; segment (zero-extend в 32 бит)
+    movzx ebx, word [vbe_ctrl_info + 0x0E]   ; offset  (zero-extend в 32 бит)
+    shl  eax, 4                               ; seg * 16
+    add  eax, ebx                             ; + offset
+    mov  [vi_modelist_ptr], eax               ; сохранить как dword
+
+    mov  si, mode_wishlist
+
+.wish_loop:
+    mov  ax, [si]
+    test ax, ax
+    jz   .fail    ; конец wishlist, ничего не нашлось
+
+    mov  [vi_wish_w],   ax
+    mov  ax, [si+2]
+    mov  [vi_wish_h],   ax
+    mov  ax, [si+4]
+    mov  [vi_wish_bpp], ax
+
+    mov  edi, [vi_modelist_ptr]
+
+.mode_loop:
+    mov  cx, [di]
+    cmp  cx, 0xFFFF
+    je   .next_wish
+
+    push si
+    push di
+
+    ; Запросить Mode Info для данного номера режима
+    mov  ax, 0x4F01
     push ds
-    pop es
-    mov di, vbe_mode_info
-    int 0x10
-    cmp ax, 0x004F
-    jne .fail
+    pop  es
+    push cx
+    mov  di, vbe_mode_info
+    int  0x10
+    pop  cx
+    cmp  ax, 0x004F
+    jne  .mode_next
 
-    mov ax, [vbe_mode_info]
+    ; Проверить: режим поддерживается (бит 0) и LFB есть (бит 7)
+    mov  ax, [vbe_mode_info]
+    test ax, 0x0001
+    jz   .mode_next
     test ax, 0x0080
-    jz .fail
+    jz   .mode_next
 
-    mov eax, [vbe_mode_info + 40]
-    test eax, eax
-    jz .fail
-    mov [LFB_STORE], eax
+    ; Проверить ширину
+    mov  ax, [vbe_mode_info + 18]
+    cmp  ax, [vi_wish_w]
+    jne  .mode_next
 
-    mov ax, 0x4F02
-    mov bx, 0x4103
-    int 0x10
-    cmp ax, 0x004F
-    jne .fail
+    ; Проверить высоту
+    mov  ax, [vbe_mode_info + 20]
+    cmp  ax, [vi_wish_h]
+    jne  .mode_next
+
+    ; Проверить bpp >= минимального
+    movzx ax, byte [vbe_mode_info + 25]
+    cmp  ax, [vi_wish_bpp]
+    jb   .mode_next
+
+    ; Тип памяти: 4=Packed pixel, 6=DirectColor
+    movzx ax, byte [vbe_mode_info + 27]
+    cmp  ax, 4
+    je   .mode_ok
+    cmp  ax, 6
+    jne  .mode_next
+
+.mode_ok:
+    pop  di
+    pop  si
+    mov  ax, [di]
+    mov  [vi_found_mode], ax
+    jmp  .activate
+
+.mode_next:
+    pop  di
+    pop  si
+    add  di, 2
+    jmp  .mode_loop
+
+.next_wish:
+    add  si, 6
+    jmp  .wish_loop
+
+.activate:
+    ; Перечитать mode info найденного режима
+    mov  cx, [vi_found_mode]
+    mov  ax, 0x4F01
+    push ds
+    pop  es
+    mov  di, vbe_mode_info
+    int  0x10
+    cmp  ax, 0x004F
+    jne  .fail
+
+    ; Установить режим, бит 14 = использовать LFB
+    mov  ax, 0x4F02
+    mov  bx, [vi_found_mode]
+    or   bx, 0x4000
+    int  0x10
+    cmp  ax, 0x004F
+    jne  .fail
+
+    ; Заполнить VideoInfo по VIDEO_INFO_ADDR
+    ; lfb_addr (dword)
+    mov  eax, [vbe_mode_info + 40]
+    mov  dword [VIDEO_INFO_ADDR + 0], eax
+
+    ; width
+    mov  ax, [vbe_mode_info + 18]
+    mov  word [VIDEO_INFO_ADDR + 4], ax
+
+    ; height
+    mov  ax, [vbe_mode_info + 20]
+    mov  word [VIDEO_INFO_ADDR + 6], ax
+
+
+    movzx eax, word [vbe_mode_info + 50]
+    test  eax, eax
+    jnz   .pitch_ok
+    movzx eax, word [vbe_mode_info + 16]
+.pitch_ok:
+    mov  dword [VIDEO_INFO_ADDR + 8], eax
+
+    ; bpp
+    mov  al, [vbe_mode_info + 25]
+    mov  byte [VIDEO_INFO_ADDR + 12], al
+
+    ; Цветовые маски
+    movzx ax, byte [vbe_mode_info + 54]   ; LinRedMaskSize
+    test  al, al
+    jnz   .use_lin_masks
+    ; VBE 2.0 fallback: banked masks
+    mov  al, [vbe_mode_info + 32]   ; RedFieldPosition
+    mov  byte [VIDEO_INFO_ADDR + 13], al
+    mov  al, [vbe_mode_info + 31]   ; RedMaskSize
+    mov  byte [VIDEO_INFO_ADDR + 14], al
+    mov  al, [vbe_mode_info + 34]   ; GreenFieldPosition
+    mov  byte [VIDEO_INFO_ADDR + 15], al
+    mov  al, [vbe_mode_info + 33]   ; GreenMaskSize
+    mov  byte [VIDEO_INFO_ADDR + 16], al
+    mov  al, [vbe_mode_info + 36]   ; BlueFieldPosition
+    mov  byte [VIDEO_INFO_ADDR + 17], al
+    mov  al, [vbe_mode_info + 35]   ; BlueMaskSize
+    mov  byte [VIDEO_INFO_ADDR + 18], al
+    jmp  .masks_store_done
+.use_lin_masks:
+    ; VBE 3.0: linear masks
+    mov  al, [vbe_mode_info + 55]   ; LinRedFieldPosition
+    mov  byte [VIDEO_INFO_ADDR + 13], al
+    mov  al, [vbe_mode_info + 54]   ; LinRedMaskSize
+    mov  byte [VIDEO_INFO_ADDR + 14], al
+    mov  al, [vbe_mode_info + 57]   ; LinGreenFieldPosition
+    mov  byte [VIDEO_INFO_ADDR + 15], al
+    mov  al, [vbe_mode_info + 56]   ; LinGreenMaskSize
+    mov  byte [VIDEO_INFO_ADDR + 16], al
+    mov  al, [vbe_mode_info + 59]   ; LinBlueFieldPosition
+    mov  byte [VIDEO_INFO_ADDR + 17], al
+    mov  al, [vbe_mode_info + 58]   ; LinBlueMaskSize
+    mov  byte [VIDEO_INFO_ADDR + 18], al
+.masks_store_done:
+
+    movzx ax, byte [VIDEO_INFO_ADDR + 12]
+    cmp  ax, 8
+    jne  .masks_done
+    mov  byte [VIDEO_INFO_ADDR + 13], 5   ; red_pos
+    mov  byte [VIDEO_INFO_ADDR + 14], 3   ; red_size
+    mov  byte [VIDEO_INFO_ADDR + 15], 2   ; green_pos
+    mov  byte [VIDEO_INFO_ADDR + 16], 3   ; green_size
+    mov  byte [VIDEO_INFO_ADDR + 17], 0   ; blue_pos
+    mov  byte [VIDEO_INFO_ADDR + 18], 2   ; blue_size
+
+.masks_done:
 
     clc
     ret
+
 .fail:
     stc
     ret
@@ -345,7 +534,7 @@ draw_menu:
 draw_box:
     pusha
     push es
-    mov ax, 0xB800 ; <----
+    mov ax, 0xB800
     mov es, ax
     mov [.w], cl
     mov [.h], ch
@@ -480,7 +669,7 @@ do_reboot:
     mov al, 0xFE
     out 0x64, al
     jmp 0xFFFF:0x0000
-    
+
 
 ;--------------------
 ; GDT
@@ -494,6 +683,14 @@ gdt_code:
 gdt_data:
     dw 0xFFFF, 0
     db 0, 10010010b, 11001111b, 0
+gdt_user_code:
+    dw 0xFFFF, 0
+    db 0, 11011010b, 11001111b, 0
+gdt_user_data:
+    dw 0xFFFF, 0
+    db 0, 11010010b, 11001111b, 0
+gdt_tss:
+    dq 0
 gdt_end:
 
 gdt_desc:
@@ -505,9 +702,8 @@ DATA_SEG equ gdt_data - gdt_start
 
 enter_pm:
     cli
-    ; номер диска для ata_flush
     mov al, [boot_drive]
-    mov [0x8008], al
+    mov [DISK_BUF_DRIVE], al
     in al, 0x92
     or al, 2
     out 0x92, al
