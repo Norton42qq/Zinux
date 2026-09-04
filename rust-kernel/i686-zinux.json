@@ -1,0 +1,24 @@
+{
+    "arch": "x86",
+    "data-layout": "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-f80:32-n8:16:32-S128",
+    "llvm-target": "i686-unknown-none",
+    "target-endian": "little",
+    "target-pointer-width": 32,
+    "target-c-int-width": 32,
+    "os": "none",
+    "executables": true,
+    "linker-flavor": "ld.lld",
+    "linker": "rust-lld",
+    "pre-link-args": {
+        "ld.lld": ["-m", "elf_i386"]
+    },
+    "post-link-args": {
+        "ld.lld": ["--omagic"]
+    },
+    "relocation-model": "static",
+    "code-model": "kernel",
+    "disable-redzone": true,
+    "panic-strategy": "abort",
+    "no-default-libraries": true,
+    "features": "-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-fma,-fma4,-xop,-mmx"
+}

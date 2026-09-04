@@ -1,0 +1,6 @@
+[package]
+name = "zinux_sdk"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

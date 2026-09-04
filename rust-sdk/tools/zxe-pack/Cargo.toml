@@ -1,0 +1,10 @@
+[package]
+name = "zxe-pack"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[[bin]]
+name = "zxe-pack"
+path = "src/main.rs"

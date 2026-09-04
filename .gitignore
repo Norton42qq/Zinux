@@ -1,0 +1,14 @@
+zinux.img
+build/
+rust-kernel/target
+rust-sdk/target
+rust-sdk/tools/zxe-pack/target
+rust-sdk/zello.zxe
+rust-sdk/zeofetch.zxe
+rust-sdk/zaint.zxe
+rust-sdk/zalc.zxe
+rust-sdk/zguidemo.zxe
+rust-sdk/znake.zxe
+rust-sdk/zetris.zxe
+rust-sdk/password.zxe
+rust-sdk/hello.zxe

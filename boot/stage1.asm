@@ -2,7 +2,7 @@
 [ORG 0x7C00]
 
 STAGE2_OFFSET   equ 0x7E00
-STAGE2_SECTORS  equ 8
+STAGE2_SECTORS  equ 12
 
 start:
     ; Инициализация сегментов

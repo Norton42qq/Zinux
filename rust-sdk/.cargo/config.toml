@@ -1,0 +1,11 @@
+[build]
+target = "i686-zinux.json"
+rustflags = "-C link-arg=-T -C link-arg=link.ld -C target-feature=-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2"
+
+[unstable]
+build-std = ["core"]
+build-std-features = ["compiler-builtins-mem"]
+json-target-spec = true
+
+[target."i686-zinux.json"]
+rustflags = "-C link-arg=-T -C link-arg=link.ld -C target-feature=-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2"

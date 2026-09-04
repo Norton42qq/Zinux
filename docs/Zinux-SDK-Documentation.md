@@ -28,8 +28,8 @@ Zinux - Российская 32-х битная операционная сис�
 ```
 ┌─────────────────────────────────────┐
 │         .ZXE программа (Ring 2)     │
-│  #include "zxe_api.h"               │
-│  int main(int argc, char* argv[])   │
+│  use zinux_sdk::api;                 │
+│  fn _start() -> !                    │
 └──────────────┬──────────────────────┘
                │  int 0x80 (syscall)
 ┌──────────────▼──────────────────────┐
@@ -48,7 +48,7 @@ Zinux - Российская 32-х битная операционная сис�
 |--------|-----------|-------|
 | Ring 0 | Ядро, загрузчик, libc, шелл | `kernel/*`, `boot/*`, `libc/*` |
 | Ring 1 | Драйверы | `kernel/drivers/*` |
-| Ring 2 | Пользовательские программы (.ZXE) | `developmentfolder/*.c(.zxe)`, `programs/*.zxe` |
+| Ring 2 | Пользовательские программы (.ZXE) | `rust-sdk/*/src/main.rs`, `programs/*.zxe` |
 
 ### 2.2 Механизм системного вызова
 
@@ -62,7 +62,7 @@ EAX = 3  -> api     (вызов функции по ID)
            ECX = указатель на аргументы
 ```
 
-> **ВАЖНО:** Прямой вызов `api->функция()` через указатель `0x100000` работает только из Ring 0 (ядро). Из Ring 2 это вызовет **General Protection Fault (#13)**. Все функции в `zxe_api.h` - это обёртки над `int 0x80`, использовать можно только их.
+> **ВАЖНО:** Прямой вызов `api->функция()` через указатель `0x100000` работает только из Ring 0 (ядро). Из Ring 2 это вызовет **General Protection Fault (#13)**. Все функции в `zinux_sdk` - это обёртки над `int 0x80`, использовать можно только их.
 ---
 
 ## 3. Формат ZXE
@@ -119,78 +119,92 @@ typedef struct {
 
 ---
 
-## 4. SDK - Создание программ
+## 4. SDK - Создание программ (Rust)
+
+Программы пишутся на чистых `no_std` Rust (без `alloc`, без libc) с
+использованием библиотеки `zinux_sdk`, находящейся в каталоге `rust-sdk/`.
+Загрузчик файлов и сборщик оставлены на C в виде бинарника.
 
 ### 4.1 Структура проекта
 
 ```
-developmentfolder/
-├── zxe_api.h      <- единственный заголовок SDK
-├── start.asm      <- точка входа (не трогать)
-├── zxe.ld         <- линкер-скрипт (не трогать)
-├── mkzxe          <- утилита упаковки
-├── makefile       <- сборка всех .c -> .zxe
-└── myprogram.c    <- ваша программа
+rust-sdk/
+├── zinux_sdk/                 <- библиотека SDK (API-обёртки над int 0x80)
+│   └── src/api.rs             <- безопасный API: print, gfx, mouse, sysinfo, ...
+├── zello/                     <- пример программы (каждая программа = крейт)
+│   └── src/main.rs
+├── tools/zxe-pack/            <- утилита-упаковщик ELF -> .ZXE (хостовый Rust)
+├── i686-zinux.json            <- target spec: i686, без SSE/SSE2/MMX, no_std
+├── link.ld                    <- линковка кода с адреса 0x200030
+├── .cargo/config.toml         <- nightly + `-Z build-std=core` + rustflags
+└── Makefile                   <- сборка всех программ в .zxe
 ```
 
 ### 4.2 Минимальная программа
 
-```c
-#include "zxe_api.h"
+```rust
+#![no_std]
+#![no_main]
 
-int main(int argc, char* argv[]) {
-    clear();
-    color(LIGHT_BLUE, BLACK);
-    println("Hello, Zinux!");
-    color(WHITE, BLACK);
-    waitkey();
-    return 0;
+use zinux_sdk::api;
+
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".text.zinux_entry")]
+pub extern "C" fn _start() -> ! {
+    unsafe { zinux_sdk::zero_bss(); }
+    api::clear();
+    api::color(api::colors::LIGHT_BLUE, api::colors::BLACK);
+    api::println("Hello, Zinux!");
+    api::color(api::colors::WHITE, api::colors::BLACK);
+    api::waitkey();
+    zinux_sdk::syscall::syscall_exit(0)
 }
 ```
 
 ### 4.3 Сборка и установка
 
 ```bash
-# Сборка всех .c файлов в .zxe
-make
+# Собрать SDK + все программы и упаковать в .zxe (из rust-sdk/)
+make pack
 
-# Установка на образ диска
+# Установить все .zxe в образ диска (FAT16, offset 2048 секторов)
 make install
 
-# Запуск Zinux в QEMU (из корня проекта)
-cd .. && make run
-
-# Подготовка mkzxe (один раз, если отсутствует)
-gcc -o mkzxe mkzxe.c
+# Или из корня проекта (всё сразу: сборка + установка + QEMU)
+make prog
+make prog-install
+make prog-run
 ```
 
-### 4.4 Флаги компилятора
+Нужны: `rustup nightly` (с компонентом `rust-src`), `qemu-system-i386`,
+`mtools`.
 
-```makefile
-CFLAGS = -m32 -std=c11 -ffreestanding -fno-stack-protector -fno-pie -Wall -Wextra -O0 -fno-builtin -march=i486 -fno-jump-tables -c
+### 4.4 Сборка одиночной программы
+
+```bash
+make one NAME=zello    # собрать и упаковать только zello.zxe
 ```
 
 ### 4.5 Ограничения
 
 - Максимальный размер программы: **64 KB**
-- Нет `malloc`/`free` - только статические массивы
-- Нет стандартной libc - только функции из `zxe_api.h`
+- `no_std`, без `alloc` - только статические массивы
 - Нет прямого доступа к оборудованию - только через `int 0x80`
 - Имена файлов FAT16: формат **8.3**, верхний регистр
 - Только 1 уровень вложенности поддиректорий
-- **`argc`/`argv` не передаются** - `zxe_run()` вызывает `run_user_program(..., 0, NULL)`. Не используйте `argv` - краш.
+- **Точка входа `_start() -> !`** в секции `.text.zinux_entry`. `argc`/`argv` не передаются.
+- `ret` из `_start` запрещён - только `syscall::syscall_exit(code)`.
 
 ### 4.6 Завершение программы
 
-`start.asm` после возврата из `main` выполняет:
+Точка входа `_start` обязана завершиться вызовом системного вызова `exit`.
 
-```nasm
-mov ebx, eax   ; exit code
-mov eax, 2     ; syscall exit
-int 0x80
+```rust
+zinux_sdk::syscall::syscall_exit(0)   // никогда не возвращает (-> !)
 ```
 
-Программа не должна делать `return` напрямую из `_start` - это вызовет падение. Просто делайте `return 0` из `main`, остальное `start.asm` берёт на себя.
+Программа не должна делать `ret` из `_start` - это вызовет падение.
+Обязательно вызовите `zero_bss()` первым делом, чтобы обнулить `.bss`.
 
 ---
 
@@ -438,15 +452,19 @@ int sh = screen_h();
 | `gfx_text(x,y,s,fg,bg)` | `void gfx_text(int,int,const char*,uint32_t,uint32_t)` | Строка в пикселях |
 | `blit(x,y,w,h,pixels)` | `void blit(int,int,int,int,const uint32_t*)` | Блок пикселей (спрайт) |
 
-```c
-int main(int argc, char* argv[]) {
-    int w = screen_w(), h = screen_h();
-    fillrect(0, 0, w, h, BLACK);
-    fillcircle(w/2, h/2, 60, LIGHT_BLUE);
-    circle(w/2, h/2, 60, WHITE);
-    gfx_text(10, 10, "Hello GFX!", WHITE, BLACK);
-    waitkey();
-    return 0;
+```rust
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".text.zinux_entry")]
+pub extern "C" fn _start() -> ! {
+    unsafe { zinux_sdk::zero_bss(); }
+    let w = api::screen_w();
+    let h = api::screen_h();
+    api::fillrect(0, 0, w, h, api::colors::BLACK);
+    api::fillcircle(w / 2, h / 2, 60, api::colors::LIGHT_BLUE);
+    api::circle(w / 2, h / 2, 60, api::colors::WHITE);
+    api::gfx_text(10, 10, "Hello GFX!", api::colors::WHITE, api::colors::BLACK);
+    api::waitkey();
+    zinux_sdk::syscall::syscall_exit(0)
 }
 ```
 
@@ -586,7 +604,6 @@ SYSCALL_API_MOUSE_SET_SENS
 
 ```
 [USER FAULT] General Protection Fault   <- программа нарушила Ring
-[USER FAULT] Bound Range Exceeded       <- скомпилировано с -O2 вместо -O0
 [USER FAULT] Invalid Opcode             <- неверные инструкции / старый API
 ```
 
@@ -614,8 +631,8 @@ SYSCALL_API_MOUSE_SET_SENS
 
 > С Zinux 0.2 escape последовательность больше не нужна.
 > Пример:
-```C 
-print("А Б В Г");
+```rust
+api::println("А Б В Г");
 ```
 ---
 
@@ -623,7 +640,6 @@ print("А Б В Г");
 
 | Проблема | Причина | Решение |
 |----------|---------|---------|
-| `[USER FAULT] Bound Range Exceeded` после выхода | Флаг `-O2` генерирует инструкцию `BOUND` | Используйте `-O0` в makefile |
-| `[USER FAULT] Page Fault at 0x6F6C6C65` | Программа прыгает в строку после `main` | Обновите `start.asm` - нужен `int 0x80` exit вместо `ret` |
-| `[USER FAULT] General Protection Fault` | IDT gate `int 0x80` имеет `DPL=0` вместо `DPL=3` | `idt_set_gate(0x80, ..., 0xEE)` в `kernel/system.c` |
+| `[USER FAULT] Page Fault` после входа | Точка входа `_start` не вызвала `zero_bss()` или читает `argc`/`argv` | Вызовите `zinux_sdk::zero_bss()` первой строкой и не читайте `argv` |
+| `[USER FAULT] General Protection Fault` | IDT gate `int 0x80` имеет `DPL=0` вместо `DPL=3` | `idt_set_gate(0x80, ..., 0x08, 0xEF)` в `rust-kernel/zcore/src/arch/idt.rs` |
 | Стрелки не работают | `signed char` обрезает значения 128–131 | `unsigned char uk = (unsigned char)waitkey()` |

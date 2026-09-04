@@ -67,6 +67,12 @@ vi_wish_h:      dw 0
 vi_wish_bpp:    dw 0
 vi_modelist_ptr: dd 0
 
+; --- Адаптивное разрешение (EDID) ---
+vbe_edid:       equ vbe_ctrl_info + 256   ; 128-байтный буфер EDID (переиспользуем vbe_ctrl_info)
+vi_native_w:    dw 0
+vi_native_h:    dw 0
+vi_pref_bpp:    dw 0
+
 align 4
 dap:
     db 0x10
@@ -255,7 +261,7 @@ load_kernel:
     mov word  [dap+2],  64
     mov word  [dap+4],  0x0000
     mov word  [dap+6],  0x1000
-    mov dword [dap+8],  9
+    mov dword [dap+8],  13
     mov dword [dap+12], 0
 
 .lba_loop:
@@ -275,9 +281,9 @@ load_kernel:
     mov es, ax
     xor bx, bx
     mov ah, 0x02
-    mov al, 63
+    mov al, 51
     mov ch, 0
-    mov cl, 6
+    mov cl, 13
     mov dh, 0
     mov dl, [boot_drive]
     int 0x13
@@ -307,6 +313,38 @@ vesa_init:
     add  eax, ebx                             ; + offset
     mov  [vi_modelist_ptr], eax               ; сохранить как dword
 
+    ; Чтение физического разрешения монитора (EDID)
+    call edid_get_native
+
+    ; 1) Сначала пробуем ТОЧНОЕ нативное разрешение (32/24/16 bpp)
+    cmp  word [vi_native_w], 0
+    jz   .wish_scan            ; EDID нет -> сразу статический список
+
+    mov  word [vi_pref_bpp], 32
+.native_try:
+    mov  ax, [vi_native_w]
+    mov  [vi_wish_w], ax
+    mov  ax, [vi_native_h]
+    mov  [vi_wish_h], ax
+    mov  ax, [vi_pref_bpp]
+    mov  [vi_wish_bpp], ax
+
+    call vbe_find_wish
+    jnc  .activate             ; нашли точное нативное -> используем
+
+    mov  ax, [vi_pref_bpp]
+    cmp  ax, 32
+    jne  .native_16
+    mov  word [vi_pref_bpp], 24
+    jmp  .native_try
+.native_16:
+    cmp  ax, 24
+    jne  .wish_scan
+    mov  word [vi_pref_bpp], 16
+    jmp  .native_try
+
+    ; 2) Статический список, но не больше физического экрана
+.wish_scan:
     mov  si, mode_wishlist
 
 .wish_loop:
@@ -320,72 +358,27 @@ vesa_init:
     mov  ax, [si+4]
     mov  [vi_wish_bpp], ax
 
-    mov  edi, [vi_modelist_ptr]
+    ; Пропускаем кандидата, который больше монитора (если EDID известен)
+    cmp  word [vi_native_w], 0
+    jz   .wish_ok
+    mov  ax, [vi_wish_w]
+    cmp  ax, [vi_native_w]
+    ja   .next_wish
+    mov  ax, [vi_wish_h]
+    cmp  ax, [vi_native_h]
+    ja   .next_wish
 
-.mode_loop:
-    mov  cx, [di]
-    cmp  cx, 0xFFFF
-    je   .next_wish
-
-    push si
-    push di
-
-    ; Запросить Mode Info для данного номера режима
-    mov  ax, 0x4F01
-    push ds
-    pop  es
-    push cx
-    mov  di, vbe_mode_info
-    int  0x10
-    pop  cx
-    cmp  ax, 0x004F
-    jne  .mode_next
-
-    ; Проверить: режим поддерживается (бит 0) и LFB есть (бит 7)
-    mov  ax, [vbe_mode_info]
-    test ax, 0x0001
-    jz   .mode_next
-    test ax, 0x0080
-    jz   .mode_next
-
-    ; Проверить ширину
-    mov  ax, [vbe_mode_info + 18]
-    cmp  ax, [vi_wish_w]
-    jne  .mode_next
-
-    ; Проверить высоту
-    mov  ax, [vbe_mode_info + 20]
-    cmp  ax, [vi_wish_h]
-    jne  .mode_next
-
-    ; Проверить bpp >= минимального
-    movzx ax, byte [vbe_mode_info + 25]
-    cmp  ax, [vi_wish_bpp]
-    jb   .mode_next
-
-    ; Тип памяти: 4=Packed pixel, 6=DirectColor
-    movzx ax, byte [vbe_mode_info + 27]
-    cmp  ax, 4
-    je   .mode_ok
-    cmp  ax, 6
-    jne  .mode_next
-
-.mode_ok:
-    pop  di
-    pop  si
-    mov  ax, [di]
-    mov  [vi_found_mode], ax
-    jmp  .activate
-
-.mode_next:
-    pop  di
-    pop  si
-    add  di, 2
-    jmp  .mode_loop
+.wish_ok:
+    call vbe_find_wish
+    jnc  .activate
 
 .next_wish:
     add  si, 6
     jmp  .wish_loop
+
+;------------------------------
+; Поиск VBE-режима по vi_wish_w/h/bpp в списке моделей
+; выход: CF=0 + vi_found_mode / CF=1 (не найден)
 
 .activate:
     ; Перечитать mode info найденного режима
@@ -485,6 +478,145 @@ vesa_init:
     ret
 
 ;--------------------
+;------------------------------
+vbe_find_wish:
+    mov  edi, [vi_modelist_ptr]
+.mode_loop:
+    mov  cx, [di]
+    cmp  cx, 0xFFFF
+    je   .not_found
+
+    push si
+    push di
+
+    ; Запросить Mode Info для данного номера режима
+    mov  ax, 0x4F01
+    push ds
+    pop  es
+    push cx
+    mov  di, vbe_mode_info
+    int  0x10
+    pop  cx
+    pop  di
+    pop  si
+    cmp  ax, 0x004F
+    jne  .mode_next
+
+    ; Проверить: режим поддерживается (бит 0) и LFB есть (бит 7)
+    mov  ax, [vbe_mode_info]
+    test ax, 0x0001
+    jz   .mode_next
+    test ax, 0x0080
+    jz   .mode_next
+
+    ; Проверить ширину
+    mov  ax, [vbe_mode_info + 18]
+    cmp  ax, [vi_wish_w]
+    jne  .mode_next
+
+    ; Проверить высоту
+    mov  ax, [vbe_mode_info + 20]
+    cmp  ax, [vi_wish_h]
+    jne  .mode_next
+
+    ; Проверить bpp >= минимального
+    movzx ax, byte [vbe_mode_info + 25]
+    cmp  ax, [vi_wish_bpp]
+    jb   .mode_next
+
+    ; Тип памяти: 4=Packed pixel, 6=DirectColor
+    movzx ax, byte [vbe_mode_info + 27]
+    cmp  ax, 4
+    je   .mode_ok
+    cmp  ax, 6
+    jne  .mode_next
+
+.mode_ok:
+    mov  ax, [di]
+    mov  [vi_found_mode], ax
+    clc
+    ret
+
+.mode_next:
+    add  di, 2
+    jmp  .mode_loop
+
+.not_found:
+    stc
+    ret
+
+;------------------------------
+; Чтение EDID: физическое (нативное) разрешение монитора
+; выход: vi_native_w/h (0 = нет данных EDID)
+;------------------------------
+edid_get_native:
+    mov  word [vi_native_w], 0
+    mov  word [vi_native_h], 0
+
+    ; VBE/DDC (AH=0x4F, AL=0x15): прочитать EDID-блок 0 в ES:DI
+    push ds
+    pop  es
+    mov  ax, 0x4F15
+    mov  bx, 1               ; BL=1: чтение EDID (BL=0 — только опрос возможностей)
+    mov  cx, 0
+    mov  dx, 0
+    mov  di, vbe_edid
+    int  0x10
+    cmp  ax, 0x004F
+    jne  .done
+
+    ; Проверка заголовка EDID: 00 FF FF FF FF FF FF 00
+    mov  al, [vbe_edid + 0]
+    test al, al
+    jnz  .done
+    mov  al, [vbe_edid + 1]
+    cmp  al, 0xFF
+    jne  .done
+    mov  al, [vbe_edid + 2]
+    cmp  al, 0xFF
+    jne  .done
+    mov  al, [vbe_edid + 3]
+    cmp  al, 0xFF
+    jne  .done
+    mov  al, [vbe_edid + 4]
+    cmp  al, 0xFF
+    jne  .done
+    mov  al, [vbe_edid + 5]
+    cmp  al, 0xFF
+    jne  .done
+    mov  al, [vbe_edid + 6]
+    cmp  al, 0xFF
+    jne  .done
+    mov  al, [vbe_edid + 7]
+    test al, al
+    jnz  .done
+
+    ; Нативное разрешение из DTD#1 (байты 0x36..0x47):
+    ;  X = edid[0x38] | ((edid[0x3A] & 0xF0) << 4)   ; +1
+    ;  Y = edid[0x3B] | ((edid[0x3D] & 0xF0) << 4)   ; +1
+    movzx eax, byte [vbe_edid + 0x38]
+    movzx ebx, byte [vbe_edid + 0x3A]
+    and   ebx, 0xF0
+    shl   ebx, 4
+    or    eax, ebx
+    inc   eax
+    cmp   eax, 640
+    jb    .done
+    mov   word [vi_native_w], ax
+
+    movzx eax, byte [vbe_edid + 0x3B]
+    movzx ebx, byte [vbe_edid + 0x3D]
+    and   ebx, 0xF0
+    shl   ebx, 4
+    or    eax, ebx
+    inc   eax
+    cmp   eax, 480
+    jb    .done
+    mov   word [vi_native_h], ax
+
+.done:
+    ret
+
 ; Меню
 ;--------------------
 draw_menu:
@@ -724,4 +856,4 @@ pm_start:
     mov esp, 0x90000
     jmp CODE_SEG:0x10000
 
-times 4096-($-$$) db 0
+times 6144-($-$$) db 0

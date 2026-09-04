@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["zlibk", "zcore"]
+
+[profile.dev]
+panic = "abort"
+opt-level = 0
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+lto = true
+codegen-units = 1

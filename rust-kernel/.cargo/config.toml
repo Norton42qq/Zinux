@@ -1,0 +1,13 @@
+[build]
+target = "i686-zinux.json"
+rustflags = [
+    "-C", "link-arg=-T",
+    "-C", "link-arg=zcore.ld",
+    "-C", "link-arg=--oformat=binary",
+    "-C", "link-arg=-Map=zcore.map",
+    "-C", "target-feature=-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-fma,-fma4,-xop,-mmx",
+]
+
+[unstable]
+build-std = ["core"]
+json-target-spec = true

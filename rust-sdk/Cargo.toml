@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = [
+    "zinux_sdk",
+    "hello",
+    "zello",
+    "zeofetch",
+    "zaint",
+    "zalc",
+    "zguidemo",
+    "znake",
+    "zetris",
+    "password",
+]
+
+[profile.dev]
+panic = "abort"
+opt-level = 0
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"

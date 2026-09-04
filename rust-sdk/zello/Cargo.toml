@@ -1,0 +1,7 @@
+[package]
+name = "zello"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+zinux_sdk = { path = "../zinux_sdk" }

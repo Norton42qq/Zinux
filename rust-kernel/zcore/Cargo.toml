@@ -1,0 +1,17 @@
+[package]
+name = "zcore"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zlibk = { path = "../zlibk" }
+
+[profile.dev]
+panic = "abort"
+opt-level = 0
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+lto = true
+codegen-units = 1
